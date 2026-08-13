@@ -88,6 +88,27 @@
   {% do dbt_unittest.assert_equals(result.ok, false) %}
 {% endmacro %}
 
+{% macro test_plan_mixed_bignumeric_and_unbounded_keeps_option() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'wide_decimals',
+    'public',
+    none,
+    none,
+    [
+      {'name': 'wide_amount', 'data_type': 'numeric', 'precision': 40, 'scale': 10},
+      {'name': 'ratio', 'data_type': 'numeric'}
+    ]
+  ) %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
+  {% do dbt_unittest.assert_equals(result.plan.decimal_option, 'bignumeric') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].target_type, 'BIGNUMERIC') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].action, 'remote_cast') %}
+{% endmacro %}
+
 {% macro test_plan_uuid_override_remote_cast() %}
   {% set result = dbt_bigquery_federation._federation_try_plan(
     'application_pg',

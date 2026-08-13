@@ -9,6 +9,7 @@
   {% do test_plan_bounded_numeric_passthrough() %}
   {% do test_plan_mixed_decimals_safe_projects_offender() %}
   {% do test_plan_mixed_decimals_strict_errors() %}
+  {% do test_plan_mixed_bignumeric_and_unbounded_keeps_option() %}
   {% do test_plan_uuid_override_remote_cast() %}
   {% do test_plan_missing_pin_errors() %}
   {% do test_federated_relation_renders_passthrough() %}

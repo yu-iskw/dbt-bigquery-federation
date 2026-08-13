@@ -3,7 +3,7 @@
 {% endmacro %}
 
 {% macro _federation_try_load_pin(connection, table, schema=None) %}
-  {% set resolved = _federation_try_resolve_connection(connection) %}
+  {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection(connection) %}
   {% if not resolved.ok %}
     {{ return({'ok': false, 'error': resolved.error, 'pin': none, 'connection': none}) }}
   {% endif %}
@@ -20,12 +20,12 @@
       'connection': none
     }) }}
   {% endif %}
-  {% set cfg = _federation_get_config() %}
+  {% set cfg = dbt_bigquery_federation._federation_get_config() %}
   {% set tables = cfg.get('tables', {}) %}
   {% if tables is not mapping %}
     {{ return({'ok': false, 'error': 'vars.dbt_bigquery_federation.tables must be a mapping', 'pin': none, 'connection': none}) }}
   {% endif %}
-  {% set key = _federation_pin_key(connection, relation_schema, table) %}
+  {% set key = dbt_bigquery_federation._federation_pin_key(connection, relation_schema, table) %}
   {% if key not in tables %}
     {{ return({
       'ok': false,

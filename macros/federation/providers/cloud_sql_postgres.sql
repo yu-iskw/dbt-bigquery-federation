@@ -3,7 +3,7 @@
     {{ exceptions.raise_compiler_error('PostgreSQL identifier must be a non-empty string') }}
   {% endif %}
   {% set ident = identifier | string %}
-  {% if _federation_identifier_is_safe_unquoted(ident) %}
+  {% if dbt_bigquery_federation._federation_identifier_is_safe_unquoted(ident) %}
     {{ return(ident) }}
   {% endif %}
   {{ return('"' ~ (ident | replace('"', '""')) ~ '"') }}
@@ -83,8 +83,8 @@
 {% endmacro %}
 
 {% macro _cloud_sql_postgres_type_entry(data_type) %}
-  {% set normalized = _cloud_sql_postgres_normalize_type_name(data_type) %}
-  {% set type_map = _cloud_sql_postgres_type_map() %}
+  {% set normalized = dbt_bigquery_federation._cloud_sql_postgres_normalize_type_name(data_type) %}
+  {% set type_map = dbt_bigquery_federation._cloud_sql_postgres_type_map() %}
   {% if normalized in type_map %}
     {% set entry = type_map[normalized] %}
     {{ return({
@@ -99,7 +99,7 @@
 {% endmacro %}
 
 {% macro _cloud_sql_postgres_render_remote_relation(schema, table) %}
-  {{ return(_cloud_sql_postgres_quote_identifier(schema) ~ '.' ~ _cloud_sql_postgres_quote_identifier(table)) }}
+  {{ return(dbt_bigquery_federation._cloud_sql_postgres_quote_identifier(schema) ~ '.' ~ dbt_bigquery_federation._cloud_sql_postgres_quote_identifier(table)) }}
 {% endmacro %}
 
 {% macro _cloud_sql_postgres_render_remote_cast(quoted_name, remote_type) %}

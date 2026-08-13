@@ -6,7 +6,7 @@
   {% if live %}
     {{ exceptions.raise_compiler_error('live metadata is not implemented in v0.1; federation_inspect plans from pins only') }}
   {% endif %}
-  {% set result = _federation_inspect_result(connection, schema, table) %}
+  {% set result = dbt_bigquery_federation._federation_inspect_result(connection, schema, table) %}
   {% if not result.ok %}
     {{ exceptions.raise_compiler_error(result.error) }}
   {% endif %}
@@ -15,7 +15,7 @@
 {%- endmacro %}
 
 {% macro _federation_inspect_result(connection, schema, table) %}
-  {% set planned = _federation_try_plan(connection, table, schema) %}
+  {% set planned = dbt_bigquery_federation._federation_try_plan(connection, table, schema) %}
   {% if not planned.ok %}
     {{ return({'ok': false, 'error': planned.error, 'report': none, 'plan': none}) }}
   {% endif %}

@@ -7,7 +7,13 @@
       "pypi.org",
       "files.pythonhosted.org",
       "trunk.io",
-      "api.trunk.io"
+      "api.trunk.io",
+      "docs.getdbt.com",
+      "docs.cloud.google.com",
+      "cloud.google.com",
+      "docs.astral.sh",
+      "code.claude.com",
+      "hub.getdbt.com"
     ]
   },
   "additionalReadwritePaths": [

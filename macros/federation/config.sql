@@ -15,7 +15,7 @@
 {% endmacro %}
 
 {% macro _federation_try_resolve_connection(connection_name) %}
-  {% set cfg = _federation_get_config() %}
+  {% set cfg = dbt_bigquery_federation._federation_get_config() %}
   {% set connections = cfg.get('connections', {}) %}
   {% if connections is not mapping %}
     {{ return({'ok': false, 'error': 'vars.dbt_bigquery_federation.connections must be a mapping', 'connection': none}) }}
@@ -36,7 +36,7 @@
     }) }}
   {% endif %}
   {% set connection_id = conn.get('connection_id') %}
-  {% if not _federation_connection_id_is_valid(connection_id) %}
+  {% if not dbt_bigquery_federation._federation_connection_id_is_valid(connection_id) %}
     {{ return({
       'ok': false,
       'error': 'connection_id for ' ~ connection_name ~ ' must match projects/PROJECT/locations/LOCATION/connections/NAME',
@@ -65,7 +65,7 @@
 {% endmacro %}
 
 {% macro _federation_package_type_overrides() %}
-  {% set cfg = _federation_get_config() %}
+  {% set cfg = dbt_bigquery_federation._federation_get_config() %}
   {% set overrides = cfg.get('type_overrides', {}) %}
   {% if overrides is not mapping %}
     {{ return({}) }}

@@ -1,9 +1,9 @@
 {% macro _federation_quote_identifier(provider, identifier) %}
-  {{ return(_federation_provider_quote_identifier(provider, identifier)) }}
+  {{ return(dbt_bigquery_federation._federation_provider_quote_identifier(provider, identifier)) }}
 {% endmacro %}
 
 {% macro _federation_quote_literal(provider, value) %}
-  {{ return(_federation_provider_quote_literal(provider, value)) }}
+  {{ return(dbt_bigquery_federation._federation_provider_quote_literal(provider, value)) }}
 {% endmacro %}
 
 {% macro _federation_identifier_is_safe_unquoted(identifier) %}
