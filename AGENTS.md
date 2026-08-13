@@ -2,14 +2,14 @@
 
 ## Repository Overview
 
-- This repository is a dbt package template for reusable macros and tests.
-- The supported execution adapters are Postgres and DuckDB.
-- Prefer minimal, focused changes that keep the starter template easy to understand and copy.
+- This repository is a dbt package of pinned BigQuery `EXTERNAL_QUERY` macros.
+- The consumer warehouse is BigQuery. The local test engine is Postgres (Jinja / `dbt-unittest`).
+- Prefer minimal, focused changes. Architecture is [docs/rfcs/0001-bigquery-federation-architecture.md](docs/rfcs/0001-bigquery-federation-architecture.md).
 
 ## Agent documentation map
 
 - For **Codex**, read [`.codex/config.toml`](.codex/config.toml) for shared defaults, profiles, and repo-local subagents.
-- Read [`CLAUDE.md`](CLAUDE.md) for Claude Code–specific notes (subagents, `initialize-dbt-package` skill) and for the same macro and integration pointers in prose form.
+- Read [`CLAUDE.md`](CLAUDE.md) for Claude Code–specific notes (subagents) and for the same macro and integration pointers in prose form.
 - When changing or adding **package macros**, read [`macros/CLAUDE.md`](macros/CLAUDE.md) for folder layout, `adapter.dispatch` / `macro_namespace`, and [`macros/properties.yml`](macros/properties.yml) for **dbt docs** metadata.
 - When changing **macro unit tests** or the integration harness layout, read [`integration_tests/CLAUDE.md`](integration_tests/CLAUDE.md) for mirroring `macros/` → `macros/tests/`, `test_` naming, and the `test_macros.sql` exception.
 
@@ -36,6 +36,7 @@
 - Keep changes aligned with existing dbt and SQL style in the repository.
 - Do not modify unrelated generated or fixture data unless the task requires it.
 - If public behavior changes, update the relevant documentation in `README.md` or `docs/`.
+- `federated_relation` must never call `run_query`.
 
 ## Testing
 

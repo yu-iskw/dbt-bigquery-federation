@@ -1,8 +1,8 @@
-name: "dbt_package_template_integration_tests"
+name: "dbt_bigquery_federation_integration_tests"
 version: "0.0.1"
 config-version: 2
 
-require-dbt-version: [">=1.10.0"]
+require-dbt-version: [">=1.10.0", "<3.0.0"]
 
 profile: "default"
 
@@ -26,7 +26,47 @@ flags:
       - ProjectFlagsMovedDeprecation
   require_generic_test_arguments_property: true
 
+vars:
+  dbt_bigquery_federation:
+    connections:
+      application_pg:
+        connection_id: projects/example/locations/us/connections/application-pg
+        provider: cloud_sql_postgres
+        defaults:
+          schema: public
+        types:
+          policy: safe
+    tables:
+      application_pg.public.orders:
+        columns:
+          - name: id
+            data_type: bigint
+          - name: amount
+            data_type: numeric
+            precision: 12
+            scale: 2
+          - name: created_at
+            data_type: timestamp
+      application_pg.public.users:
+        columns:
+          - name: id
+            data_type: bigint
+          - name: user_uuid
+            data_type: uuid
+          - name: payload
+            data_type: jsonb
+      application_pg.public.mixed_decimals:
+        columns:
+          - name: amount
+            data_type: numeric
+            precision: 12
+            scale: 2
+          - name: ratio
+            data_type: numeric
+
 models:
-  dbt_package_template_integration_tests:
+  dbt_bigquery_federation_integration_tests:
     example:
+      +materialized: view
+    federation:
       +materialized: view

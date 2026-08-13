@@ -30,7 +30,7 @@ Ship macros that are:
 - extending pseudonymization or helper logic (other packages)
 - touching macro namespaces, arguments, or return shapes
 
-**dbt-package-template:** Read [macros/CLAUDE.md](../../../macros/CLAUDE.md). Public macros use `adapter.dispatch('<name>', 'dbt_package_template')` with `default__<name>` and optional adapter-specific implementations in the **same file** as the dispatcher; `macro_namespace` must match `name` in the root `dbt_project.yml`. For other repositories (e.g. flat `dbt-unittest`), follow that repo’s layout and dispatch rules instead.
+**dbt_bigquery_federation:** Read [macros/CLAUDE.md](../../../macros/CLAUDE.md). Public macros use `adapter.dispatch('<name>', 'dbt_bigquery_federation')` with `default__<name>` and optional adapter-specific implementations in the **same file** as the dispatcher; `macro_namespace` must match `name` in the root `dbt_project.yml`. For other repositories (e.g. flat `dbt-unittest`), follow that repo’s layout and dispatch rules instead.
 
 ## Workflow
 

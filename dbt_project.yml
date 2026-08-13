@@ -1,10 +1,10 @@
 ---
-name: "dbt_package_template"
+name: "dbt_bigquery_federation"
 version: "0.0.1"
 
 config-version: 2
 
-require-dbt-version: [">=1.10.0"]
+require-dbt-version: [">=1.10.0", "<3.0.0"]
 
 model-paths: ["models"]
 analysis-paths: ["analysis"]
@@ -16,3 +16,6 @@ macro-paths: ["macros"]
 clean-targets:
   - "target"
   - "dbt_packages"
+
+vars:
+  dbt_bigquery_federation: {}

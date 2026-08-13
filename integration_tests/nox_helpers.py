@@ -10,7 +10,7 @@ INTEGRATION_TESTS_DIR = Path(__file__).resolve().parent
 if str(INTEGRATION_TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(INTEGRATION_TESTS_DIR))
 
-ADAPTERS = ["postgres", "duckdb"]
+ADAPTERS = ["postgres"]
 FUSION_GROUP = "dbt-fusion"
 FUSION_BINARY_NAME = "dbt"
 FUSION_VERSION = os.environ.get("DBT_FUSION_VERSION", "")
@@ -43,16 +43,6 @@ def build_env(session, uv_group, adapter, dbt_cmd):
     env = dict(os.environ)
     env.update(session.env)
     env["DBT_CMD"] = dbt_cmd
-
-    if adapter == "duckdb" and "DBT_DUCKDB_PATH" not in env:
-        duckdb_dir = INTEGRATION_TESTS_DIR / "target"
-        duckdb_dir.mkdir(exist_ok=True)
-        py_ver = session.python.replace(".", "")
-        uv_slug = uv_group.replace("-", "_")
-        env["DBT_DUCKDB_PATH"] = str(
-            duckdb_dir / f"dbt_package_template_{uv_slug}_{py_ver}.duckdb"
-        )
-
     return env
 
 

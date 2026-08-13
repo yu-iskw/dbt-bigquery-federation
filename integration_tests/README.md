@@ -1,9 +1,11 @@
-# Integration tests for `dbt-package-template`
+# Integration tests for `dbt_bigquery_federation`
 
-This directory contains the test harness for two runnable lanes:
+This directory contains the test harness:
 
-- a standard dbt-core lane on `postgres` and `duckdb` for `dbt-core-1-10` and `dbt-core-1-11`
-- a `dbt Fusion` lane on the same `postgres` and `duckdb` contract
+- a required dbt-core lane on `postgres` (Jinja engine) for `dbt-core-1-10` and `dbt-core-1-11`
+- a non-blocking `dbt Fusion` preview lane on the same Postgres contract
+
+Planner tests do not require GCP. `dbt build` runs the non-federated example models; `dbt compile` checks the federated staging model.
 
 ## Setup
 
@@ -48,13 +50,11 @@ make -C integration_tests postgres-logs
 ```
 
 The unit-test harness runs `dbt run-operation test_macros`.
-Macro test files mirror `macros/` under `macros/tests/` (for example `macros/tests/example/test_normalize_text.sql`).
-The integration harness runs `dbt build` against the example project.
+Macro test files mirror `macros/` under `macros/tests/`.
+The integration harness runs `dbt build --exclude federation` then `dbt compile --select federation`.
 
 ## Fusion lane
 
-Fusion sessions live in [`noxfile_fusion.py`](noxfile_fusion.py) (not the default `noxfile.py` entrypoint). Run them with `uv run nox -f noxfile_fusion.py` (the Makefile fusion targets pass `-f` for you).
-
-The Fusion lane installs the Fusion runtime into the nox session virtual environment and then runs the same Postgres and DuckDB targets as the dbt-core lane. CI runs Fusion on **Python 3.12** only.
+Fusion sessions live in [`noxfile_fusion.py`](noxfile_fusion.py) (not the default `noxfile.py` entrypoint). Run them with `uv run nox -f noxfile_fusion.py` (the Makefile fusion targets pass `-f` for you). Fusion CI is **non-blocking**.
 
 Set `DBT_FUSION_VERSION` if you need to pin a specific Fusion build instead of the latest available installer target.

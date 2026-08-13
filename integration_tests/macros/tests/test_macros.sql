@@ -1,5 +1,16 @@
 {% macro test_macros() %}
-  {% do test_normalize_text_trims_and_lowercases() %}
-  {% do test_normalize_text_returns_none_for_blank_input() %}
-  {% do test_normalize_text_returns_none_for_null_input() %}
+  {% do test_connection_id_validation() %}
+  {% do test_quote_safe_and_mixed_case_identifiers() %}
+  {% do test_external_query_renders_without_planning() %}
+  {% do test_plan_all_native_passthrough() %}
+  {% do test_plan_uuid_jsonb_safe_projection() %}
+  {% do test_plan_uuid_strict_errors() %}
+  {% do test_plan_unknown_type_errors() %}
+  {% do test_plan_bounded_numeric_passthrough() %}
+  {% do test_plan_mixed_decimals_safe_projects_offender() %}
+  {% do test_plan_mixed_decimals_strict_errors() %}
+  {% do test_plan_uuid_override_remote_cast() %}
+  {% do test_plan_missing_pin_errors() %}
+  {% do test_federated_relation_renders_passthrough() %}
+  {% do test_federation_inspect_reports_pushdown() %}
 {% endmacro %}

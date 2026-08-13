@@ -23,7 +23,7 @@ The nested `integration_tests/` project installs the package locally and provide
 
 In the **dbt-package-template** repository, macro test files **mirror** the package macro directories under `macros/`:
 
-- `macros/example/normalize_text.sql` pairs with `integration_tests/macros/tests/example/test_normalize_text.sql`
+- `macros/federated_relation.sql` pairs with `integration_tests/macros/tests/test_federated_relation.sql`
 - use the same relative path under `integration_tests/macros/tests/` as under `macros/`, with a `test_` prefix on the basename
 - keep the `dbt run-operation` entry macro at `integration_tests/macros/tests/test_macros.sql` only (not nested); register new suites with `{% do test_*() %}` there
 

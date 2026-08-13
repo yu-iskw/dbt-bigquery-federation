@@ -1,29 +1,29 @@
 with actual as (
     select
         id,
-        normalized_name,
-        normalized_email
+        name,
+        email
     from {{ ref("stg_users") }}
 ),
 expected as (
     select
         1 as id,
-        'alice smith' as normalized_name,
-        'alice@example.com' as normalized_email
+        '  Alice Smith  ' as name,
+        ' ALICE@example.com ' as email
     union all
     select
         2 as id,
-        'bob' as normalized_name,
-        'bob@example.com' as normalized_email
+        'BOB' as name,
+        'bob@example.com' as email
 )
 
 select
     actual.id,
-    actual.normalized_name as actual_normalized_name,
-    expected.normalized_name as expected_normalized_name,
-    actual.normalized_email as actual_normalized_email,
-    expected.normalized_email as expected_normalized_email
+    actual.name as actual_name,
+    expected.name as expected_name,
+    actual.email as actual_email,
+    expected.email as expected_email
 from actual
 inner join expected using (id)
-where actual.normalized_name <> expected.normalized_name
-   or actual.normalized_email <> expected.normalized_email
+where actual.name <> expected.name
+   or actual.email <> expected.email
