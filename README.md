@@ -62,6 +62,11 @@ vars:
             data_type: numeric
             precision: 12
             scale: 2
+    type_overrides:
+      uuid:
+        strategy: remote_cast
+        remote_type: text
+        target_type: STRING
 ```
 
 `connection_id` must be fully qualified:

@@ -128,3 +128,17 @@
   {% set result = dbt_bigquery_federation._federation_try_plan('application_pg', 'does_not_exist', 'public') %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
 {% endmacro %}
+
+{% macro test_plan_type_overrides_money_under_strict() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'prices',
+    'public',
+    'strict',
+    none,
+    [{'name': 'price', 'data_type': 'money'}]
+  ) %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'remote_cast') %}
+{% endmacro %}
