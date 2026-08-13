@@ -1,11 +1,13 @@
 # RFC-0001: BigQuery Federation Compiler for dbt v1 and v2
 
-- **Status:** Proposed
+- **Status:** Proposed (revised)
 - **Date:** 2026-08-14
+- **Revised:** 2026-08-14 (adversarial review: pinned-default, v0.1 scope cut)
 - **Package namespace:** `dbt_bigquery_federation`
 - **Target:** BigQuery
-- **dbt compatibility objective:** `>=1.10.0,<3.0.0`
-- **Initial remote providers:** Cloud SQL PostgreSQL/MySQL, AlloyDB PostgreSQL, Spanner GoogleSQL/PostgreSQL
+- **dbt compatibility objective (install range):** `>=1.10.0,<3.0.0`
+- **Supported CI:** dbt Core 1.10 and 1.11 with a Postgres Jinja execution target
+- **v0.1 remote provider:** Cloud SQL PostgreSQL (`cloud_sql_postgres`)
 
 ## 1. Executive summary
 
@@ -13,27 +15,23 @@ This RFC proposes a dbt package that makes BigQuery federation a reusable, schem
 
 The core decision is:
 
-> **Build one federation compiler in dbt macros. Make a runtime table-expression macro the primary interface. Implement code generation and `dbt run-operation` as alternate frontends over the same metadata, type-planning, and SQL-rendering engine. Do not implement a custom materialization.**
+> **Build a pinned federation planner in dbt macros. Make a runtime table-expression macro the primary interface. Plan only from Git-reviewed vars. Do not discover remote schemas during compile. Do not implement a custom materialization.**
 
-The compiler pipeline is:
+v0.1 compilation is a pure function of Git + vars. Automatic live catch-up is explicitly out of scope.
+
+The planner pipeline is:
 
 ```text
-connection + remote relation + policy
+connection + remote relation + pinned columns + policy
                │
                ▼
        resolve provider/config
                │
                ▼
-       discover source schema
+       plan type conversions (decision table + decimal fold)
                │
                ▼
-      normalize source metadata
-               │
-               ▼
-       plan type conversions
-               │
-               ▼
- choose cheapest correct SQL plan
+        choose SQL body × decimal option
                │
       ┌────────┼─────────┐
       ▼        ▼         ▼
@@ -45,15 +43,11 @@ connection + remote relation + policy
                │
                ▼
        ordinary dbt model SQL
-               │
-      ┌────────┼──────────┐
-      ▼        ▼          ▼
-     view     table   incremental
 ```
 
 This boundary is intentional: federation determines **how a SELECT obtains and normalizes source rows**; dbt materializations determine **how that SELECT is persisted**.
 
-The planner MUST preserve `SELECT * FROM T` when BigQuery can safely perform native mapping because BigQuery's documented `EXTERNAL_QUERY` pushdowns depend on that shape. Explicit source projections are generated only when correctness or user configuration requires them.
+The planner MUST preserve `SELECT * FROM T` when BigQuery can safely perform native mapping because BigQuery's documented `EXTERNAL_QUERY` pushdowns depend on that shape. Explicit source projections are generated only when correctness or an explicit override requires them.
 
 ## 2. Problem statement
 
@@ -67,50 +61,60 @@ from external_query(
 )
 ```
 
-Production dbt usage introduces four problems.
+Production dbt usage introduces four problems. v0.1 addresses the first two with pinned metadata; the third is deferred.
 
 ### 2.1 Schema drift
 
 Operational schemas change independently of dbt. Hard-coded projections go stale, but unqualified `SELECT *` can start failing when a newly added source column has a type unsupported by BigQuery federation.
 
-Therefore schema discovery and type conversion are one problem, not two independent features.
+v0.1 treats the pin list as the reviewed contract: adding an unsupported column does not break production until someone updates the pin and reviews the plan.
 
 ### 2.2 Type fidelity
 
-BigQuery automatically maps many MySQL/PostgreSQL/Spanner types, but Google documents important exceptions and semantic differences. PostgreSQL types such as `uuid`, `jsonb`, `money`, `inet`, and `interval` are unsupported in ordinary PostgreSQL federation and must be converted remotely. MySQL `GEOMETRY` and `BIT` are also documented as unsupported. PostgreSQL numeric precision can exceed BigQuery `NUMERIC` and even `BIGNUMERIC`.
+BigQuery automatically maps many PostgreSQL types, but Google documents important exceptions. PostgreSQL types such as `uuid`, `jsonb`, `money`, `inet`, and `interval` are unsupported in ordinary PostgreSQL federation and must be converted remotely. PostgreSQL numeric precision can exceed BigQuery `NUMERIC` and even `BIGNUMERIC`.
 
-A static `source_type -> BigQuery_type` map is insufficient. The package needs a planner that can choose native mapping, query-wide options, remote casts, post-processing, warnings, or failure.
+A static `source_type -> BigQuery_type` map is insufficient when decimals mix bounded and unbounded precision. The package needs a **decision table plus a relation-level decimal fold**, not an open-ended compiler.
 
 ### 2.3 Reproducibility versus automatic evolution
 
-Live discovery gives the desired automatic catch-up behavior, but the same Git commit can compile differently after a source schema change. Some users want that; others require schema changes to be reviewed in Git.
+Live discovery gives automatic catch-up, but the same Git commit can compile differently after a source schema change. dbt's contract is that the same Git SHA plus the same vars compiles the same SQL.
 
-Both live and pinned workflows must be first-class.
+v0.1 chooses reproducibility. Live compile-time `run_query()` is rejected: `execute` is false only during parse, so "no I/O when `execute` is false" does not protect `dbt compile` or `dbt docs generate`.
 
 ### 2.4 dbt v1/v2 evolution
 
-The package should survive dbt's v1-to-v2/Fusion transition by relying on the dbt authoring layer—Jinja/macros, `run_query`, `execute`, vars, and normal model materializations—and avoiding Python adapter internals or custom persistence behavior.
+The package should survive dbt's v1-to-v2/Fusion transition by relying on the dbt authoring layer—Jinja/macros, vars, and normal model materializations—and avoiding Python adapter internals or custom persistence behavior. Fusion BigQuery is Preview; it is not a v0.1 support gate.
 
 ## 3. Goals and non-goals
 
-### Goals
+### v0.1 MUST
 
-The package MUST:
+1. expose `federated_relation` as a table-expression macro that renders `EXTERNAL_QUERY(...)`;
+2. plan types from **pinned** normalized column metadata in package vars (available at parse; no warehouse I/O);
+3. preserve remote `SELECT * FROM T` when every pinned column is natively safe, or a single query-wide decimal option makes them all safe;
+4. under `safe`, remote-cast known-unsupported PostgreSQL types to `text` and fail on unknown types;
+5. support connection / type / column overrides with one documented precedence ladder;
+6. compose with stock `view`, `table`, and `incremental` (the user owns `on_schema_change`; examples use `fail`);
+7. never call `run_query` from `federated_relation`;
+8. quote identifiers through the provider quoter and reject unsafe unquoted names;
+9. keep public macros overridable via `adapter.dispatch(..., 'dbt_bigquery_federation')` → `default__*`;
+10. cover Core 1.10 and 1.11 with planner/parse tests that do **not** require GCP.
 
-1. expose a natural table-expression macro for federated relations;
-2. discover current source schemas through provider metadata;
-3. use BigQuery native type mapping when safe;
-4. automatically handle known unsupported types under a configurable policy;
-5. support connection/type/table/column overrides;
-6. follow source schema evolution in live mode;
-7. offer a reproducible pinned/codegen mode;
-8. compose with dbt `view`, `table`, `incremental`, and `ephemeral` semantics;
-9. work across dbt Core v1.10+ and dbt v2/Fusion with explicit CI coverage;
-10. separate provider-specific metadata/quoting from provider-independent planning;
-11. provide inspection, validation, and schema-diff operations;
-12. construct high-level remote SQL safely with provider-specific identifier/literal handling.
+### v0.1 MUST NOT
 
-### Non-goals
+- live compile-time discovery;
+- `columns=` on the primary macro;
+- MySQL or Spanner providers;
+- codegen file writers;
+- schema-diff as a product;
+- Terraform / GCP E2E as an acceptance gate;
+- a persistent metadata cache;
+- Plan D (BigQuery post-process, including automatic STRING → JSON);
+- a `native` policy that emits failing `SELECT *`;
+- Fusion as a required CI gate;
+- implicit `on_schema_change`.
+
+### Non-goals (package lifetime)
 
 The package is not:
 
@@ -119,21 +123,13 @@ The package is not:
 - a new dbt adapter;
 - a custom `federated` materialization;
 - a manager for BigQuery connections, Cloud SQL, AlloyDB, Spanner, IAM, or credentials;
-- a remote DDL/DML framework;
-- initially, a persistent metadata cache service;
-- initially, a manager for Spanner external datasets.
+- a remote DDL/DML framework.
 
 Infrastructure SHOULD be provisioned separately, preferably as infrastructure as code.
 
 ## 4. Repository baseline
 
-The repository currently inherits `yu-iskw/dbt-package-template`. At RFC time:
-
-- `dbt_project.yml` still uses `dbt_package_template`;
-- README/test guidance still targets Postgres and DuckDB;
-- the Core test matrix currently covers 1.10/1.11 rather than the intended BigQuery/v1/v2 matrix.
-
-This RFC is documentation-only. The first implementation PR MUST convert the template to `dbt_bigquery_federation` and align tests/documentation before feature work.
+This repository started as `yu-iskw/dbt-package-template` (Postgres/DuckDB, `dbt_package_template`). Implementation of this RFC converts identity to `dbt_bigquery_federation` and **keeps Postgres as the Jinja macro-runner**, dropping DuckDB as a dbt target. Postgres is not the federation warehouse; it is the GCP-free test engine.
 
 The intended project constraint is:
 
@@ -142,64 +138,45 @@ name: dbt_bigquery_federation
 require-dbt-version: ">=1.10.0,<3.0.0"
 ```
 
+The upper bound is an **install** range so Fusion users can depend on the package. **Supported** behavior is whatever required CI proves: Core 1.10 and 1.11 planner/parse tests on Postgres.
+
 ## 5. Alternatives and decision
 
-| Approach | Completeness | v1/v2 safety | Schema drift | Composability | Efficiency | Maintainability | Weighted result |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Runtime macro only | 88 | 94 | 95 | 98 | 72 | 86 | 90 |
-| Codegen only | 78 | 96 | 58 | 98 | 92 | 92 | 83 |
-| `run-operation` managed views | 86 | 88 | 90 | 94 | 78 | 76 | 87 |
-| Custom materialization | 87 | 62 | 92 | 58 | 76 | 52 | 74 |
-| **Layered hybrid** | **96** | **92** | **96** | **99** | **88** | **84** | **94** |
+Alternatives considered:
 
-Weights: completeness 25%, v1/v2 compatibility 20%, drift handling 20%, composability 15%, efficiency 10%, maintainability 10%.
+- **Runtime macro with live compile-time `run_query`.** Meets automatic evolution; makes `compile` / `docs generate` federate against OLTP `information_schema`; parse SQL can diverge from compile SQL. Rejected for v0.1.
+- **Pinned vars as the only planner input; inspect as `run-operation`.** Compile is a pure function of Git + vars. Discovery, if added later, is an explicit reviewable step. **Selected.**
+- **`source()` as the pin/declaration surface in v0.1.** Better long-term DX, but a second product (graph identity, freshness, fake database/schema rules) on top of an unbuilt planner. Deferred.
+- **Custom materialization.** Would couple the package to view/table/incremental lifecycle, hooks, grants, and dbt internals. Fusion-hostile. Rejected. Because the package then has **no runtime hook**, live-at-compile discovery is also rejected.
 
-### Decision
+A numeric scoring table is not used. Completeness of "has every frontend" is not a reason to ship codegen, inspect-as-product-suite, and five providers in v0.1.
 
-Choose the layered hybrid:
-
-```text
-                         shared compiler
-                    ┌─────────┴─────────┐
-                    │ metadata + types  │
-                    │ + SQL planning    │
-                    └─────────┬─────────┘
-          ┌───────────────────┼────────────────────┐
-          ▼                   ▼                    ▼
-  runtime relation()     run-operation          codegen
-  primary interface     inspect/validate     pinned workflow
-```
-
-A custom materialization is rejected because materializations are persistence strategies. Reimplementing federation as a materialization would couple the package to view/table/incremental lifecycle behavior, hooks, grants, schema-change handling, incremental strategies, and dbt internals unnecessarily.
-
-## 6. Adversarial evaluation
+## 6. Adversarial evaluation (revised)
 
 ### Central claim
 
-A runtime macro plus shared compiler best satisfies automatic schema catch-up without taking ownership of dbt persistence.
+A runtime macro plus a **pinned** decision-table planner best satisfies type-safe `EXTERNAL_QUERY` generation without taking ownership of dbt persistence or compile-time warehouse I/O.
 
 ### Strongest case for
 
-- directly meets the automatic-evolution requirement;
 - remains normal model SQL, so standard dbt materializations continue to work;
-- one compiler can support runtime, codegen, and operations;
-- provider/type logic stays testable and centralized.
+- compilation is reviewable in Git;
+- provider/type logic stays testable with fixtures and no GCP;
+- one private renderer can serve `federated_relation` and the raw `external_query` hatch.
 
-### Strongest case against
+### Strongest case against, and the v0.1 resolution
 
-**Nondeterminism:** live source metadata means the same Git revision can compile differently over time.
+**Nondeterminism:** live metadata means the same Git revision can compile differently over time. **Resolution:** pins only. Live is not a v0.1 mode.
 
-**Remote compilation dependency:** dbt documents that `run_query()` executes during connected compilation, including `dbt compile` and, by default, `dbt docs generate`.
+**Remote compilation dependency:** `run_query()` runs during connected compilation, including `dbt compile` and default `dbt docs generate`. **Resolution:** `federated_relation` never calls `run_query`. Pins are vars, so the real plan is rendered at parse.
 
-**Pushdown loss:** BigQuery documents that `EXTERNAL_QUERY` pushdown is constrained to suitable `SELECT * FROM T` forms. Always emitting explicit casts/projections would sacrifice an important optimizer path.
+**Pushdown loss:** BigQuery documents that `EXTERNAL_QUERY` pushdown is constrained to `SELECT * FROM T`. **Resolution:** no `columns=` on the primary macro. Users prune on the BigQuery side. Projection is emitted only when a type conversion requires it, and inspect reports `pushdown=lost`.
 
-### Resolution
+**Jinja as a compiler:** an open-ended type solver in Jinja will not stay reviewable. **Resolution:** versioned type maps plus a small relation fold. No two-stage post-process in v0.1.
 
-The architecture remains recommended only with three safeguards:
+**Fusion Preview as a support claim:** BigQuery on Fusion is Preview. **Resolution:** non-blocking Fusion lane; do not advertise Fusion BigQuery as supported.
 
-1. live **and** pinned metadata modes;
-2. explicit inspection/diagnostics around compile-time introspection;
-3. a planner that preserves passthrough SQL unless conversion is necessary.
+**Five providers and GCP E2E as v0.1:** cannot be verified in this repository. **Resolution:** Cloud SQL PostgreSQL only; GCP E2E is a later RFC.
 
 ## 7. Public API
 
@@ -216,22 +193,32 @@ from {{ dbt_bigquery_federation.federated_relation(
 ) }}
 ```
 
-Conceptual signature:
+Signature:
 
 ```text
 federated_relation(
   connection,
   table,
   schema=None,
-  columns=None,
-  metadata_mode=None,
   type_policy=None,
-  overrides=None,
-  options=None
+  overrides=None
 ) -> SQL table expression
 ```
 
-It MUST resolve config, discover metadata when appropriate, plan types, choose an execution plan, and render a BigQuery table expression.
+There is no `columns`, `metadata_mode`, or `options` argument.
+
+It MUST resolve config, load the pin, plan types, and render a BigQuery table expression. A missing pin is `exceptions.raise_compiler_error`.
+
+To return a subset of columns **without** disabling remote pushdown, project on the BigQuery side:
+
+```sql
+select id, amount
+from {{ dbt_bigquery_federation.federated_relation(
+    connection='application_pg',
+    schema='public',
+    table='orders'
+) }}
+```
 
 ### 7.2 `external_query`
 
@@ -245,284 +232,227 @@ from {{ dbt_bigquery_federation.external_query(
 ) }}
 ```
 
-This path is intentionally less managed and should be documented as trusted raw remote SQL.
+This path is trusted raw remote SQL. The dbt identity executes this string on the remote database. The compiler uses a **private** renderer; the public hatch never runs the planner.
 
-### 7.3 Metadata and operations
+### 7.3 `federation_inspect`
 
-Initial operational interfaces:
-
-```text
-get_remote_columns()
-federation_inspect
-federation_validate
-federation_schema_diff
-generate_federated_model
-generate_federated_models
-```
-
-`federation_inspect` should explain every conversion, for example:
+`run-operation` (and a callable macro) that prints the inspect table from **pins**:
 
 ```text
-COLUMN      SOURCE TYPE       TARGET       ACTION          LOSSINESS
-id          bigint            INT64        passthrough     exact
-user_uuid   uuid              STRING       remote_cast     representation
-amount      numeric(50,20)    BIGNUMERIC   query_option    exact
-payload     jsonb             STRING       remote_cast     representation
+COLUMN      SOURCE TYPE       TARGET       ACTION          LOSSINESS              PUSHDOWN
+id          bigint            INT64        passthrough     exact                  kept
+user_uuid   uuid              STRING       remote_cast     representation_change  lost
 ```
 
-`federation_validate` SHOULD validate generated source expressions with source-side zero-row queries such as `WHERE 1=0`, rather than assume outer BigQuery `LIMIT` pushdown.
+The operation also reports provider, connection alias, relation, policy, body class, and query-wide decimal option.
+
+An optional `live=true` argument is reserved. v0.1 MUST error if `live` is true: live metadata is not implemented.
+
+Dropped from the v0.1 public surface: `get_remote_columns`, `federation_validate`, `federation_schema_diff`, `generate_federated_model`, `generate_federated_models`.
+
+### 7.4 Parse contract
+
+Pins are vars, so they are available when `execute` is false. `federated_relation` renders the **real plan** at parse. There is no dummy `SELECT *` stub. If the pin is missing, parse fails.
 
 ## 8. Configuration
 
-Recommended shape:
+One nested shape:
 
 ```yaml
 vars:
   dbt_bigquery_federation:
     connections:
       application_pg:
-        connection_id: >-
-          projects/analytics-prod/locations/asia-northeast1/connections/application-pg
+        connection_id: "{{ env_var('BQ_FEDERATION_CONNECTION_ID') }}"
         provider: cloud_sql_postgres
         defaults:
           schema: public
-        metadata:
-          mode: live
         types:
-          policy: safe
-          decimal: adaptive
-          known_unsupported: string
-          unknown: error
-```
-
-The package SHOULD require or strongly prefer fully qualified connection IDs:
-
-```text
-projects/PROJECT_ID/locations/LOCATION/connections/CONNECTION_ID
-```
-
-Google warns that non-fully-qualified connection IDs in shared views can resolve against the wrong project.
-
-Override precedence:
-
-```text
-provider defaults
-   ↓
-package defaults
-   ↓
-connection
-   ↓
-source type
-   ↓
-table
-   ↓
-column
-   ↓
-macro invocation
-```
-
-Example:
-
-```yaml
-type_overrides:
-  uuid:
-    strategy: remote_cast
-    remote_type: text
-    target_type: STRING
-
-tables:
-  public.events:
-    columns:
-      payload:
+          policy: safe   # safe | strict
+    tables:
+      application_pg.public.orders:
+        columns:
+          - name: id
+            data_type: bigint
+          - name: user_uuid
+            data_type: uuid
+          - name: amount
+            data_type: numeric
+            precision: 12
+            scale: 2
+    type_overrides:
+      uuid:
         strategy: remote_cast
         remote_type: text
         target_type: STRING
 ```
 
+`connection_id` MUST match:
+
+```text
+^projects/[^/]+/locations/[^/]+/connections/[^/]+$
+```
+
+Document per-target `env_var` / target-scoped vars. Do not present a single production connection ID as the happy path.
+
+v0.1 provider key: `cloud_sql_postgres` only.
+
+Override precedence (implement exactly this):
+
+```text
+package defaults
+   ↓
+connection types.policy
+   ↓
+type_overrides (by source type)
+   ↓
+table/column pin fields (strategy / remote_type / target_type)
+   ↓
+macro invocation type_policy / overrides
+```
+
+Macro `overrides` is a mapping keyed by column name:
+
+```yaml
+user_uuid:
+  strategy: remote_cast
+  remote_type: text
+  target_type: STRING
+```
+
 ## 9. Metadata modes
 
-### `live` — default
+### `pinned` — v0.1, the only mode
 
-Discover current metadata during connected compilation. Additions/removals/type changes are replanned automatically.
+Use declared metadata in vars. No live source access is used for planning.
 
-Pros: best schema catch-up. Cons: requires connectivity and weakens deterministic compilation.
+### `live` — deferred
 
-### `pinned`
-
-Use generated/declared metadata. No live source access is needed for planning.
-
-Pros: reviewable and reproducible. Cons: must be regenerated when sources change.
+Compile-time discovery is not part of v0.1. A later RFC may add an explicit opt-in that is documented as CI-unsafe. It MUST NOT be the default.
 
 ### `cached` — deferred
 
-A shared metadata cache is not part of v0.1. TTL, invalidation, concurrency, ownership, and staleness deserve a later RFC after benchmarks show a real need.
+A shared metadata cache is not part of v0.1.
 
 ## 10. dbt parse and compile behavior
 
-The package MUST never perform database access when `execute` is false.
+`federated_relation` MUST never call `run_query`, regardless of `execute`.
 
-During parse-only evaluation, `federated_relation` must emit a syntactically valid passthrough expression using static identifiers only.
+Because pins are vars, parse and compile emit the same SQL for the same Git + vars.
 
-During connected compilation in live mode, metadata discovery may use `run_query()`.
-
-This distinction must be tested on:
-
-```text
-Core 1.10
-Core 1.11
-Core 1.12
-Core 1.12 --use-v2-parser (where supported)
-v2/Fusion BigQuery
-```
-
-Because dbt v2 performs stricter and earlier validation, provider routing should use parse-resolvable macros. The initial implementation SHOULD use an explicit provider router rather than dynamic calls to potentially nonexistent macro names.
+Provider routing MUST use parse-resolvable macros: an explicit `if/elif` router whose callees all exist in the package. Do not dynamically invoke potentially nonexistent macro names.
 
 ## 11. Normalized schema model
 
-Every provider MUST translate native `information_schema` rows into one stable internal model before type planning.
-
-Conceptual representation:
+Pins are already the internal model. Each column:
 
 ```yaml
 name: amount
-ordinal_position: 5
-nullable: true
-source:
-  provider: cloud_sql_postgres
-  data_type: numeric
-  raw_data_type: numeric(50,20)
-  precision: 50
-  scale: 20
-  provider_metadata: {}
-plan:
-  classification: query_option
-  action: query_option
-  target_type: BIGNUMERIC
-  lossiness: exact
-  warnings: []
+data_type: numeric
+raw_data_type: numeric(12,2)   # optional
+precision: 12                  # optional; null/absent => unbounded
+scale: 2                       # optional; null/absent => unbounded
+nullable: true                 # optional
+strategy: remote_cast          # optional pin-level override
+remote_type: text              # optional
+target_type: STRING            # optional
 ```
 
-Provider code owns:
+Provider code owns quoting, remote relation rendering, remote casts, and the type map.
 
-```text
-information_schema -> normalized columns
-```
-
-Core compiler code owns:
-
-```text
-normalized columns -> conversion plan -> SQL plan
-```
+Core planner code owns: pin lookup → column actions → decimal fold → query plan → SQL body.
 
 ## 12. Provider abstraction
 
-Initial provider operations:
+v0.1 operations:
 
 ```text
-metadata_query(provider, relation)
 quote_identifier(provider, identifier)
-quote_literal(provider, value, logical_type)
-normalize_type(provider, metadata_row)
+quote_literal(provider, value)
+normalize_type_name(provider, data_type)
+type_map(provider)
 render_remote_cast(provider, column, plan)
-render_remote_relation(provider, relation)
+render_remote_relation(provider, schema, table)
 ```
 
-Providers:
+Remote-provider routing is not dbt `adapter.dispatch`: the dbt target adapter is BigQuery (or, in this repo's tests, Postgres as a Jinja engine) while the varying dimension is the remote database.
 
-- `cloud_sql_postgres`
-- `cloud_sql_mysql`
-- `alloydb_postgres`
-- `spanner_google_sql`
-- `spanner_postgresql`
+Public macros still use `adapter.dispatch(..., 'dbt_bigquery_federation')` so consumers can override via `search_order`. Internal remote dialect uses the explicit router.
 
-Cloud SQL PostgreSQL and AlloyDB can share a PostgreSQL family, but Spanner PostgreSQL remains distinct where type semantics differ.
-
-Remote-provider routing is not the same as dbt `adapter.dispatch`: the dbt target adapter is BigQuery while the varying dimension is the remote database.
+AlloyDB PostgreSQL, Cloud SQL MySQL, and Spanner are later RFCs. Do not accept those provider keys in v0.1.
 
 ## 13. Type planner
 
-Each column should be classified as one of:
+This is a **decision table + relation fold**, not a general compiler.
+
+Column actions: `passthrough` | `remote_cast` | `fail`.
+
+Query plan:
 
 ```text
-native_exact
-native_risky
-query_option
-requires_remote_cast
-requires_bigquery_postprocess
-known_unsupported
-unknown
-user_overridden
+(body: passthrough | projection) × (decimal_option: none | numeric | bignumeric)
 ```
 
-and assigned lossiness:
+These dimensions combine. A table with `jsonb` and mixed decimals may be **projection + no decimal option**. Stop treating exclusive A/B/C/D plans as the model.
 
-```text
-exact
-representation_change
-potentially_lossy
-lossy
-unknown
-```
+Policies:
 
-### Policies
+- **`safe` (default):** known unsupported types are remote-cast to `text`; unknown types fail.
+- **`strict`:** known unsupported and unknown types fail until an override acknowledges them.
 
-**`native`**: prefer BigQuery's mappings/options and maximize passthrough.
+There is no `native` policy in v0.1.
 
-**`safe` (default)**: automatically handle known unsupported/risky types conservatively. Known unsupported PostgreSQL values such as `uuid`/`jsonb` can be source-cast to text; unknown extension types fail rather than being silently guessed.
+Lossiness values: `exact` | `representation_change` | `unknown`.
 
-**`strict`**: compilation fails for unknown or potentially lossy conversions until explicitly acknowledged by an override.
+### Decimal fold
 
-### Decimal planning
+BigQuery `NUMERIC` is precision 38 / scale 9 (29 integer digits). `BIGNUMERIC` is precision 76 / scale 38.
 
-BigQuery supports query-wide `default_type_for_decimal_columns` values `numeric`, `bignumeric`, `float64`, and `string` for MySQL `DECIMAL` and PostgreSQL `numeric`.
+- All decimal columns have proven precision/scale that fit `NUMERIC` → passthrough body, `decimal_option=none`.
+- Else all fit `BIGNUMERIC` → passthrough body, `decimal_option=bignumeric`.
+- Else under `safe`: remote-cast **only** the offenders to `text`; leave fitting decimals native; body becomes projection; warn that pushdown is lost. Under `strict`: fail the offenders.
+- Null/absent precision or scale ⇒ unbounded ⇒ offender.
+- Never stringify a well-typed `numeric(12,2)` because a sibling unbounded `numeric` exists.
+- Do not apply a query-wide decimal option that would change types of columns that already fit `NUMERIC` unless **every** decimal in the query needs the wider option (the all-fit-BIGNUMERIC case).
 
-The planner SHOULD use that option before source projections:
+### Known-unsupported PostgreSQL (v0.1 map)
 
-```text
-all decimals fit NUMERIC?
-  ├─ yes -> SELECT * fast path
-  └─ no
-      ↓
-all fit BIGNUMERIC and policy allows?
-  ├─ yes -> SELECT * + bignumeric option
-  └─ no -> projection / STRING / explicit failure
-```
+Remote-cast to `text` under `safe` (Google's unsupported list, plus common aliases): `uuid`, `jsonb`, `money`, `inet`, `cidr`, `macaddr`, `macaddr8`, `interval`, `time with time zone`, `timetz`, and geometric types (`point`, `line`, `lseg`, `box`, `path`, `polygon`, `circle`).
 
-PostgreSQL unbounded/high-precision numeric must not be assumed to fit BigQuery. Under `safe`, STRING is the conservative exact textual fallback when representability cannot be proven; under `strict`, require an explicit choice.
+`json` maps natively to BigQuery `STRING` — keep passthrough.
 
-### JSON
-
-Cloud SQL/AlloyDB PostgreSQL `jsonb` is unsupported directly. Initial `safe` behavior should preserve it as serialized STRING. Automatic conversion to BigQuery JSON should be opt-in because it changes semantics and can introduce parsing/wide-number behavior.
+Unknown extension types fail under both policies.
 
 ## 14. Execution plans
 
-The compiler SHOULD choose one of these plans.
-
-### A. Passthrough fast path
+### Passthrough
 
 ```sql
-external_query(connection, 'select * from public.orders')
+EXTERNAL_QUERY(
+  'projects/.../connections/...',
+  '''select * from public.orders'''
+)
 ```
 
-Use whenever every requested column can be mapped correctly without source expressions.
+Use when every pinned column can be mapped without a source expression and no query-wide option is required.
 
-### B. Passthrough plus query-wide option
+### Passthrough plus query-wide option
 
 ```sql
-external_query(
-  connection,
-  'select * from public.orders',
+EXTERNAL_QUERY(
+  'projects/.../connections/...',
+  '''select * from public.orders''',
   '{"default_type_for_decimal_columns":"bignumeric"}'
 )
 ```
 
-Prefer this over per-column decimal casts when one query-wide option is valid.
+Use only when **all** decimals share one representable Google option and that option is required.
 
-### C. Projected remote normalization
+### Projected remote normalization
 
 ```sql
-external_query(
-  connection,
+EXTERNAL_QUERY(
+  'projects/.../connections/...',
   '''
   select
     id,
@@ -535,32 +465,24 @@ external_query(
 )
 ```
 
-Use only when necessary. The planner must record that automatic outer-query pushdown can no longer be assumed.
+Use only when at least one column requires a remote expression. Inspect MUST report `pushdown=lost`.
 
-### D. Two-stage normalization
+Google's limitation, verbatim: SQL pushdowns are only applied to federated queries of the form `SELECT * FROM T`. Any explicit remote column list, including an uncasted list, disables that path.
 
-Remote normalization plus an outer BigQuery expression. This should be rare and opt-in in early releases.
+Two-stage BigQuery post-process is out of v0.1.
 
 ## 15. Schema evolution and standard materializations
 
-Live mode automatically replans:
+v0.1 does not automatically replan when the remote schema changes. Updating pins is a Git review.
 
-- added columns;
-- removed columns;
-- precision/scale changes;
-- type changes;
-- newly unsupported columns.
-
-This catches up the **federation SELECT**, not the history of persisted dbt tables. Standard dbt behavior continues to govern materialized schemas.
-
-Example incremental model:
+Standard dbt behavior governs materialized schemas. Incremental examples MUST use `on_schema_change='fail'` unless the user explicitly chooses otherwise. The package MUST NOT set `on_schema_change` implicitly.
 
 ```sql
 {{
   config(
     materialized='incremental',
     unique_key='id',
-    on_schema_change='append_new_columns'
+    on_schema_change='fail'
   )
 }}
 
@@ -579,302 +501,233 @@ where updated_at > (
 {% endif %}
 ```
 
-Documentation SHOULD recommend `append_new_columns` as a conservative starting point, but MUST NOT set it implicitly. `sync_all_columns` can be destructive/expensive and remains a user decision.
-
-When the plan is native `SELECT *`, BigQuery may push supported outer filters into Cloud SQL/AlloyDB/Spanner. When normalization requires source expressions, pushdown cannot be assumed. Structured remote predicates may be a later API; v0.1 can use the low-level `external_query` escape hatch for performance-critical custom remote filters.
+When the plan is native `SELECT * FROM T`, BigQuery may push supported outer filters into Cloud SQL. When normalization requires source expressions, pushdown cannot be assumed.
 
 ## 16. Why not ordinary dbt sources?
 
-A Cloud SQL/AlloyDB relation referenced only through `EXTERNAL_QUERY` is not an ordinary BigQuery relation. Modeling it as a normal `source()` can create misleading relation lookup, catalog, freshness, grant, and quoting semantics.
+A Cloud SQL relation referenced only through `EXTERNAL_QUERY` is not an ordinary BigQuery relation. Modeling it as a normal `source()` with a fake BigQuery `database`/`schema` can create misleading relation lookup, catalog, freshness, grant, and quoting semantics.
 
-Recommended boundary:
+v0.1 recommended boundary:
 
 ```text
 remote table
-    ↓ federated_relation()
+    ↓ federated_relation()   # pins in vars
 base/staging dbt model
     ↓ ref()
 normal dbt DAG
 ```
 
-Spanner external datasets are different: they expose BigQuery-visible external relations and can be modeled as normal sources without this compiler.
+This does **not** forbid a later `federated_relation(from_source=...)` helper that reads `source.meta` and pinned columns from `sources.yml`. That is a follow-on RFC. Spanner external datasets remain ordinary BigQuery sources and are out of this compiler.
 
 ## 17. Spanner
 
-BigQuery supports Spanner through external datasets and through `EXTERNAL_QUERY`.
-
-External datasets are attractive and support useful pushdowns, but currently have constraints relevant here: no `INFORMATION_SCHEMA` views on the BigQuery external dataset, only default-schema tables, inaccessible unsupported columns, no metadata cache, and Data Boost usage.
-
-Therefore v0.x should use the shared `EXTERNAL_QUERY` compiler when the package needs metadata/type normalization. Existing Spanner external datasets should remain normal BigQuery relations. An automatic backend selector can be proposed later.
+Out of v0.1. Existing Spanner external datasets should remain normal BigQuery relations. An `EXTERNAL_QUERY` Spanner backend can be proposed later.
 
 ## 18. Operational and security requirements
 
 ### Locations
 
-For Cloud SQL and AlloyDB, a BigQuery single region can query compatible sources in the same region; multi-region rules are defined by Google. Query processing location must match the BigQuery connection location.
-
-The package SHOULD parse the connection location from canonical IDs and compare it with target location when available, failing for obvious incompatibilities and warning when validation is incomplete.
+The package SHOULD parse the connection location from canonical IDs. v0.1 does not fail compilation on target-location mismatch (the test target is Postgres). Document that query processing location must match the BigQuery connection location.
 
 ### Quotas and load
 
-Google documents:
-
-- up to 1 TB/project/day for cross-region federated querying;
-- at most 10 unique connections in one federated query;
-- no separate external-source workload quota configured by BigQuery;
-- `maximum bytes billed` is not supported for federated queries.
-
-Documentation SHOULD recommend source workload isolation: Cloud SQL read replicas, suitable AlloyDB read endpoints/read pools, and Spanner Data Boost where appropriate.
+Google documents cross-region federated-query quotas, a cap of 10 unique connections in one federated query, and that `maximum bytes billed` is not supported for federated queries. Documentation SHOULD recommend source workload isolation. v0.1 compile does not add compile-time federated load.
 
 ### Credentials
 
-Package vars contain BigQuery connection resource IDs, not database passwords. The dbt identity needs appropriate BigQuery connection-use permissions and underlying source read permissions.
-
-Connections SHOULD use least-privilege/read-only database identities.
+Package vars contain BigQuery connection resource IDs, not database passwords. The package cannot enforce read-only source identities and MUST say so.
 
 ### SQL injection boundary
 
-High-level APIs MUST distinguish identifiers, typed literals, and trusted raw SQL. Provider-specific quoting is mandatory. Future remote filters should be structured rather than accepting arbitrary `WHERE` fragments by default.
+High-level APIs MUST distinguish identifiers, typed literals, and trusted raw SQL.
 
-The raw `external_query` macro is an explicit advanced escape hatch.
+- Unquoted identifiers MUST match `^[a-z_][a-z0-9_]*$`.
+- Otherwise the provider `quote_identifier` implementation is used (PostgreSQL: double quotes, internal quotes doubled).
+- High-level APIs never concatenate raw SQL fragments from the user.
+- `external_query` is documented as: the dbt identity executes this string on the remote DB.
 
 ### Compiled artifacts
 
-Compiled SQL can reveal remote schema/table names and user-provided literals. Documentation should warn that dbt `target/`, logs, and CI artifacts may contain rendered remote SQL.
+Compiled SQL will contain connection resource names and remote schema/table names. Documentation should warn that dbt `target/`, logs, and CI artifacts may contain rendered remote SQL.
 
 ## 19. Performance principles
 
 1. Preserve `SELECT * FROM T` whenever correct.
-2. Prefer `EXTERNAL_QUERY` query-wide options over per-column casts when they satisfy policy.
-3. Scope metadata queries narrowly to one relation and only required metadata fields.
-4. Do not promise cross-node in-memory metadata caching until validated across dbt threads and v1/v2 engines.
-5. Avoid validation queries that accidentally scan full source tables.
-6. Benchmark source load and bytes transferred, not only BigQuery wall-clock time.
-
-A benchmark suite should compare:
-
-```text
-native SELECT * + outer filter
-projected normalization + outer filter
-explicitly filtered remote SQL
-```
-
-and inspect BigQuery query plans where practical.
+2. Prefer query-wide decimal options over per-column casts when they satisfy policy for **all** decimals.
+3. Do not query `information_schema` at compile time in v0.1.
+4. Do not promise metadata caching.
+5. Benchmark source load and bytes transferred in a later RFC that has GCP E2E; v0.1 does not claim runtime performance numbers.
 
 ## 20. Codegen and pinned workflow
 
-Codegen uses the same compiler and normalized schema representation.
+v0.1 pins are hand-authored YAML in vars. A `run-operation` that prints YAML is not a reproducibility system and is not shipped as `generate_federated_models`.
 
-A strict-governance workflow is:
-
-```text
-source schema changes
-      ↓
-federation_schema_diff
-      ↓
-generate_federated_model
-      ↓
-Git diff / review
-      ↓
-merge pinned metadata/model
-```
-
-A pure dbt package SHOULD print generated SQL/YAML through `run-operation`; arbitrary filesystem writing is not required.
-
-A `sync_federated_views` operation is deliberately excluded from v0.1 because it creates warehouse state and orchestration ordering. It can be reconsidered if users need shared normalized views outside dbt.
+`federation_inspect` prints the plan for a pin so reviewers can see conversions before merge.
 
 ## 21. dbt v1/v2 compatibility
 
-As of 2026-08-14, dbt documentation describes v2 as the current era delivered through Fusion, and gives `require-dbt-version: ">=1.10.0,<3.0.0"` as an example of a version constraint containing v2. BigQuery in the current v2/Fusion adapter matrix is marked Preview.
-
-Recommended CI matrix:
-
 ```text
-required:
-  Core 1.10 + dbt-bigquery
-  Core 1.11 + dbt-bigquery
-  Core 1.12 + dbt-bigquery
+required CI:
+  Core 1.10 + postgres target (Jinja engine)
+  Core 1.11 + postgres target (Jinja engine)
 
-preview lane:
-  dbt v2/Fusion + BigQuery
+preview (non-blocking):
+  dbt Fusion + postgres target
 ```
 
-The range expresses intent, while CI establishes actual support.
+Fusion BigQuery is Preview and is **not** a v0.1 acceptance gate. Do not advertise Fusion BigQuery support.
 
 Implementation MUST avoid:
 
 - Python adapter internals;
-- parse-time database access;
+- compile-time database access from `federated_relation`;
 - nonexistent/dynamically unresolved macros;
 - custom materialization internals;
 - v1-only deprecated Jinja behavior.
-
-Core 1.12's v2 parser compatibility mode should be included where useful.
 
 ## 22. Testing strategy
 
 ### Layer 1: static/parse
 
-Test Jinja/YAML, package namespace, parse-safe behavior, Core 1.10/1.11/1.12, and v2/Fusion.
+Jinja/YAML, package namespace, parse-safe planning from pins. Core 1.10/1.11. Fusion preview optional.
 
-### Layer 2: planner/rendering fixtures
+### Layer 2: planner/rendering fixtures (required, no GCP)
 
-Feed normalized metadata fixtures into the planner and assert plans/SQL for:
+Feed pinned column fixtures into the planner and assert plans/SQL **strings**. Never `run_query` of `EXTERNAL_QUERY`.
 
-- PostgreSQL scalar types;
-- `uuid`, `jsonb`, `money`, `inet`, `interval`;
-- bounded/unbounded numerics;
-- MySQL signed/unsigned integers and DECIMAL boundaries;
-- MySQL `TIME`, `BIT`, `GEOMETRY`;
-- Spanner GoogleSQL/PostgreSQL types;
-- unknown extension types;
-- quoting/reserved identifiers;
-- override precedence.
+Required cases:
+
+- all-native → `select * from <rel>` and no options JSON;
+- `uuid` / `jsonb` under `safe` → projection with `cast(... as text)`;
+- `uuid` under `strict` → error unless override;
+- unknown extension type → error;
+- all `numeric(12,2)` → passthrough, no option;
+- mix `numeric(12,2)` + unbounded `numeric` under `safe` → projection only on the unbounded column; fitting column uncast; pushdown lost;
+- same mix under `strict` → error;
+- type override for uuid → remote_cast;
+- missing pin → error;
+- parse-equivalent planning (helper, no warehouse).
 
 ### Layer 3: source-dialect tests
 
-Dockerized PostgreSQL/MySQL can validate information-schema queries and cast syntax locally. These are not full federation tests.
+Postgres container remains for the macro runner. Optional later: execute remote `cast` / quoting SQL against local Postgres. Not full federation.
 
 ### Layer 4: Google Cloud E2E
 
-Real E2E needs BigQuery connections and real Cloud SQL/AlloyDB/Spanner sources. Terraform SHOULD manage test infrastructure. Prefer pre-provisioned/shared infrastructure plus isolated per-run schemas/databases rather than creating expensive services on every PR.
-
-Schema-drift tests MUST exercise:
-
-```text
-initial schema
- -> add supported column
- -> add unsupported column
- -> precision/type change
- -> drop column
-```
-
-and verify live replanning.
-
-The materialization matrix should cover view, table, incremental, and embedding/ephemeral behavior without implementing custom materializations.
+Out of v0.1 acceptance. Requires BigQuery connections and real Cloud SQL. Later RFC.
 
 ## 23. Diagnostics
 
-Debug output should expose:
+Inspect output MUST expose:
 
 - provider and connection alias;
 - relation;
-- metadata mode/type policy;
-- selected plan class;
-- query-wide options;
+- type policy;
+- body class and decimal option;
 - converted columns;
-- lossiness warnings;
-- whether the passthrough fast path survived.
+- lossiness;
+- whether the passthrough fast path survived (`pushdown=kept|lost`).
 
-Errors should identify provider, table, column, raw source type, policy, and the override path needed to resolve the issue.
+Errors MUST identify provider, table, column, raw source type, policy, and the override path needed to resolve the issue.
 
 ## 24. Target repository structure
 
+Do **not** use `macros/public/` (this template groups by family; public macros dispatch from the family file). Do not name provider files `postgres.sql` (looks like `postgres__*` adapter impls).
+
 ```text
 macros/
-├── public/
-│   ├── federated_relation.sql
-│   ├── external_query.sql
-│   └── get_remote_columns.sql
-├── config/
-├── metadata/
-├── providers/
-│   ├── router.sql
-│   ├── postgres.sql
-│   ├── mysql.sql
-│   ├── spanner_google_sql.sql
-│   └── spanner_postgresql.sql
-├── types/
-├── rendering/
-├── operations/
-└── codegen/
+  federated_relation.sql
+  external_query.sql
+  federation/
+    config.sql
+    pins.sql
+    plan.sql
+    render.sql
+    quote.sql
+    inspect.sql
+    providers/
+      router.sql
+      cloud_sql_postgres.sql
+  properties.yml
 
 integration_tests/
-└── terraform/   # or equivalent GCP fixture IaC
+  macros/tests/          # mirrored test_ files
+  models/example/        # GCP-free dbt build
+  models/federation/     # compile-only federated smoke
 
 docs/rfcs/
-└── 0001-bigquery-federation-architecture.md
+  0001-bigquery-federation-architecture.md
 ```
 
-The implementation should consolidate files where splitting creates indirection without value.
+Two-layer dispatch: public macros `adapter.dispatch` for consumer `search_order`; remote dialect via explicit router with every branch present at parse.
 
 ## 25. Implementation sequence
 
-### Phase 0 — template conversion
+### Phase 0 — identity, keep Postgres runner
 
-Rename the package, replace Postgres/DuckDB target assumptions with BigQuery, update docs/agent guidance, and establish the v1/v2 BigQuery matrix.
+Rename the package to `dbt_bigquery_federation`. Drop DuckDB as a dbt target. Keep the Postgres service and Compose file. Make Fusion non-blocking.
 
-### Phase 1 — federation foundation
+### Phase 1 — v0.1 planner (this RFC's implementation)
 
-Implement connection resolution, `external_query`, quoting, metadata discovery/normalization, and `federation_inspect`. Start with Cloud SQL PostgreSQL + AlloyDB.
+Config, quoting, private renderer, `external_query`, pins, decision table, `federated_relation`, `federation_inspect`, fixture tests, compile-only federated model smoke.
 
-### Phase 2 — planner + primary UX
+### Later RFCs
 
-Implement `native`/`safe`/`strict`, PostgreSQL unsupported types, decimal options, execution-plan selection, `federated_relation`, and view/table/incremental E2E tests.
+MySQL, AlloyDB as a tested provider, Spanner, live opt-in discovery, schema diff, codegen, GCP E2E, Fusion BigQuery support, `source()` integration.
 
-### Phase 3 — MySQL
+## 26. Acceptance criteria (v0.1)
 
-Add MySQL metadata, quoting, decimal/range edge cases, and Cloud SQL MySQL E2E.
-
-### Phase 4 — Spanner
-
-Add GoogleSQL/PostgreSQL provider logic, Spanner options, Data Boost guidance, and E2E coverage. Do not manage external datasets yet.
-
-### Phase 5 — reproducibility tooling
-
-Add pinned mode, model generation, and schema diff.
-
-### Phase 6 — performance hardening
-
-Benchmark large projects and source load. Only then decide whether shared metadata caching needs a new RFC.
-
-## 26. Acceptance criteria
-
-A production-capable release requires:
-
-- live discovery for declared providers;
-- documented handling or deliberate failure for known unsupported types;
-- per-column overrides;
-- precision-aware decimal planning;
-- observable fast-path/projected-path selection;
-- correct provider quoting;
-- supported Core v1 CI lanes;
-- a passing v2/Fusion BigQuery compatibility lane for supported behavior;
-- no warehouse access during parse-only execution;
-- normal dbt view/table/incremental interoperability;
-- canonical connection handling and operational guidance;
-- real federation E2E coverage for at least Cloud SQL PostgreSQL;
-- no database credentials in package configuration.
+- pinned planning for `cloud_sql_postgres`;
+- documented handling or deliberate failure for known unsupported PostgreSQL types;
+- per-column and per-type overrides;
+- precision-aware decimal fold that does not stringify well-typed decimals because of a sibling offender;
+- observable passthrough vs projection (`pushdown=kept|lost`);
+- correct PostgreSQL identifier quoting;
+- Core 1.10 and 1.11 CI on the Postgres Jinja engine;
+- Fusion lane may fail without blocking v0.1;
+- no warehouse access from `federated_relation`;
+- parse emits the real planned SQL;
+- stock dbt view/table/incremental remain the persistence story;
+- canonical connection IDs;
+- no database credentials in package configuration;
+- no GCP required to merge planner work.
 
 ## 27. Major risks
 
 | Risk | Mitigation |
 | --- | --- |
-| Live source changes alter compiled SQL | Pinned mode, schema diff, strict policy |
-| New unsupported column breaks raw federation | Live metadata + known-type normalization |
-| Normalization disables pushdown | Passthrough/query-option fast paths and inspect output |
-| Metadata calls make compile slow | Narrow queries; benchmark before cache |
-| v2 parses differently | Parse-safe router and dedicated Fusion lane |
+| Pins drift from the remote schema | Inspect + Git review; live mode deferred |
+| Normalization disables pushdown | Passthrough/query-option fast paths; inspect `pushdown` |
+| Jinja planner becomes unreviewable | Decision table + fold only; no Plan D |
+| Fusion parses differently | Parse-resolvable router; Fusion non-blocking |
 | Type conversion loses semantics | Lossiness model, strict policy, STRING fallback |
-| Federation overloads source DB | Read replicas/read pools/Data Boost, concurrency guidance |
-| Cross-region topology fails or burns quota | Canonical connection IDs and location checks/warnings |
-| Raw remote SQL is unsafe | Structured high-level API; raw SQL as explicit escape hatch |
+| Raw remote SQL is unsafe | Structured high-level API; hatch is explicit |
+| Fake five-provider support | v0.1 is Cloud SQL PostgreSQL only |
 
-## 28. Open questions
+## 28. Closed questions and later RFCs
 
-1. Should safe mode map MySQL `TIME` to STRING by default because its range is wider than BigQuery TIME, or retain native mapping with a warning?
-2. Should pinned metadata live in macro arguments, package vars, or generated properties YAML?
-3. How much BigQuery post-processing (for example STRING -> JSON) belongs in the first release?
-4. Is user-defined provider extension needed, or are package releases sufficient initially?
-5. Should live introspection run during all connected compile/doc commands or support an explicit command policy?
-6. Can metadata safely be memoized across nodes/threads in both engines?
-7. When does a Spanner external-dataset backend provide enough value to warrant package-level support?
+Closed for v0.1:
+
+1. **Pinned store:** `vars.dbt_bigquery_federation.tables['<connection>.<schema>.<table>'].columns`. Not macro arguments, not generated `properties.yml`.
+2. **Compile/docs I/O:** none. `federation_inspect` plans from pins. `live=true` errors in v0.1.
+3. **Memoization:** not needed; the compiler does not query.
+4. **Default metadata mode:** pinned. There is no live default.
+
+Later RFCs:
+
+- MySQL `TIME` mapping;
+- BigQuery post-process (STRING → JSON);
+- user-defined providers;
+- Spanner external-dataset backend;
+- `federated_relation(from_source=...)`;
+- live opt-in discovery and command policy;
+- AlloyDB as a separately tested provider.
 
 ## 29. Final recommendation
 
-Implement `dbt_bigquery_federation` as a **federation compiler**, not merely an `EXTERNAL_QUERY` wrapper and not a materialization.
+Implement `dbt_bigquery_federation` as a **pinned federation planner**, not a live catalog crawler, not merely an `EXTERNAL_QUERY` wrapper, and not a materialization.
 
-The primary runtime experience should remain as small as:
+The primary runtime experience should remain:
 
 ```sql
 select *
@@ -885,13 +738,13 @@ from {{ dbt_bigquery_federation.federated_relation(
 ) }}
 ```
 
-while the internal engine handles discovery, normalization, type policy, overrides, and plan selection.
-
-The key implementation rule is:
+The key implementation rules are:
 
 > **Do not generate explicit per-column remote SQL merely because metadata is available. Generate it only when correctness or an explicit user request requires it.**
 
-That rule preserves BigQuery federation optimization when possible while still allowing automatic schema and type normalization when necessary.
+> **Do not call `run_query` from `federated_relation`. Pins are the compiler input.**
+
+Those rules preserve BigQuery federation optimization when possible and keep dbt compilation a function of Git + vars.
 
 ## 30. References
 
@@ -900,10 +753,11 @@ Platform facts were rechecked against official documentation on 2026-08-14.
 ### dbt
 
 - v2 upgrade/package compatibility: <https://docs.getdbt.com/docs/dbt-versions/core-upgrade/upgrading-to-v2>
-- v2 adapter guidance: <https://docs.getdbt.com/docs/contribute-core-adapters-v2>
+- Fusion availability (BigQuery Preview): <https://docs.getdbt.com/docs/fusion/fusion-availability>
 - `run_query`: <https://docs.getdbt.com/reference/dbt-jinja-functions/run_query>
 - materializations: <https://docs.getdbt.com/docs/build/materializations>
 - incremental models: <https://docs.getdbt.com/docs/build/incremental-models>
+- dispatch: <https://docs.getdbt.com/reference/dbt-jinja-functions/dispatch?version=1.12>
 
 ### Google Cloud
 
@@ -911,7 +765,3 @@ Platform facts were rechecked against official documentation on 2026-08-14.
 - `EXTERNAL_QUERY`, options, type mappings: <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/federated_query_functions>
 - BigQuery data types: <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/data-types>
 - Cloud SQL federation: <https://docs.cloud.google.com/bigquery/docs/cloud-sql-federated-queries>
-- AlloyDB federation: <https://docs.cloud.google.com/bigquery/docs/alloydb-federated-queries>
-- Spanner federation: <https://docs.cloud.google.com/bigquery/docs/spanner-federated-queries>
-- Spanner external datasets: <https://docs.cloud.google.com/bigquery/docs/spanner-external-datasets>
-- quotas: <https://docs.cloud.google.com/bigquery/quotas>
