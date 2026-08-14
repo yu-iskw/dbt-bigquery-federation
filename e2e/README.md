@@ -11,6 +11,13 @@ The harness covers the two provider paths that cannot be validated by `bigquery-
 
 Terraform owns infrastructure and BigQuery connection resources. SQL fixtures are committed separately so schema and row-level expectations stay reviewable. `run.sh` applies fixtures and executes live-discovery operations and representative federated queries.
 
+For Spanner, the Terraform module deliberately creates two BigQuery connections:
+
+- a **parallel data connection** (`use_parallelism = true`) for representative table scans;
+- a **non-parallel metadata connection** (`use_parallelism = false`) for `INFORMATION_SCHEMA` discovery.
+
+Parallel Spanner connections are restricted to queries that satisfy Spanner's partitionability requirements. Metadata queries are not guaranteed to be root partitionable, so the package config uses the non-parallel connection as `metadata_connection_id` while ordinary table queries continue to use `connection_id`.
+
 ## Prerequisites
 
 - Terraform >= 1.8
@@ -52,6 +59,7 @@ This harness is deliberately local and ephemeral. Terraform state contains gener
 2. seeds Spanner fixture rows with `gcloud spanner databases execute-sql`;
 3. runs `dbt debug` against real BigQuery using OAuth/ADC;
 4. calls `get_remote_columns` for AlloyDB and Spanner to exercise live metadata discovery;
-5. executes representative `EXTERNAL_QUERY` statements with `bq query` and checks deterministic row counts.
+5. verifies Spanner metadata discovery uses the dedicated non-parallel BigQuery connection;
+6. executes representative `EXTERNAL_QUERY` statements with `bq query`, using the parallel Spanner data connection, and checks deterministic row counts.
 
 The existing credential-free emulator CI remains unchanged. Real Google Cloud provisioning and query execution are deliberately developer-triggered and are not performed by GitHub Actions.
