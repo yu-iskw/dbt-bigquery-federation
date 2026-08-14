@@ -74,13 +74,28 @@
     'lossiness': 'representation_change',
     'remote_type': 'text'
   } %}
-  {% for name in [
-    'uuid', 'jsonb', 'money', 'inet', 'cidr', 'macaddr', 'macaddr8', 'interval',
-    'time with time zone', 'point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle',
-    'pg_lsn', 'tsquery', 'tsvector', 'txid_snapshot'
-  ] %}
-    {% do type_map.update({name: unsupported}) %}
-  {% endfor %}
+  {% do type_map.update({
+    'uuid': unsupported,
+    'jsonb': unsupported,
+    'money': unsupported,
+    'inet': unsupported,
+    'cidr': unsupported,
+    'macaddr': unsupported,
+    'macaddr8': unsupported,
+    'interval': unsupported,
+    'time with time zone': unsupported,
+    'point': unsupported,
+    'line': unsupported,
+    'lseg': unsupported,
+    'box': unsupported,
+    'path': unsupported,
+    'polygon': unsupported,
+    'circle': unsupported,
+    'pg_lsn': unsupported,
+    'tsquery': unsupported,
+    'tsvector': unsupported,
+    'txid_snapshot': unsupported
+  }) %}
   {{ return(type_map) }}
 {% endmacro %}
 

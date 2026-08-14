@@ -37,6 +37,10 @@
     {{ return({'kind': 'native', 'target': entry.target, 'lossiness': entry.lossiness, 'data_type': normalized, 'remote_type': 'STRING'}) }}
   {% endif %}
   {% if modules.re.match('^ARRAY<.+>$', normalized) is not none %}
+    {% set inner = modules.re.sub('^ARRAY<(.+)>$', '\\1', normalized) %}
+    {% if 'STRUCT' in inner %}
+      {{ return({'kind': 'unsupported', 'target': none, 'lossiness': 'semantic_change', 'data_type': normalized, 'remote_type': none}) }}
+    {% endif %}
     {{ return({'kind': 'native', 'target': 'ARRAY', 'lossiness': 'exact', 'data_type': normalized, 'remote_type': 'STRING'}) }}
   {% endif %}
   {% if modules.re.match('^STRUCT<.*>$', normalized) is not none or normalized == 'STRUCT' %}

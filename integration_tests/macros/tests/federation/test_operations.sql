@@ -27,3 +27,16 @@
   {% set diff = dbt_bigquery_federation._federation_schema_diff_columns(columns, columns) %}
   {% do dbt_unittest.assert_equals(diff.has_changes, false) %}
 {% endmacro %}
+
+{% macro test_schema_diff_report_includes_precision_scale() %}
+  {% set pinned = [
+    {'name': 'amount', 'data_type': 'numeric', 'precision': 12, 'scale': 2}
+  ] %}
+  {% set live = [
+    {'name': 'amount', 'data_type': 'numeric', 'precision': 20, 'scale': 4}
+  ] %}
+  {% set diff = dbt_bigquery_federation._federation_schema_diff_columns(pinned, live) %}
+  {% set report = dbt_bigquery_federation._federation_format_schema_diff_report('public', 'orders', diff) %}
+  {% do dbt_unittest.assert_equals('numeric(12,2) -> numeric(20,4)' in report, true) %}
+  {% do dbt_unittest.assert_equals('~ amount ' in report, true) %}
+{% endmacro %}

@@ -6,23 +6,23 @@
 
 {% macro test_quote_safe_and_mixed_case_identifiers() %}
   {% do dbt_unittest.assert_equals(
-    dbt_bigquery_federation._cloud_sql_postgres_quote_identifier('orders'),
+    dbt_bigquery_federation._federation_provider_quote_identifier('cloud_sql_postgres', 'orders'),
     '"orders"'
   ) %}
   {% do dbt_unittest.assert_equals(
-    dbt_bigquery_federation._cloud_sql_postgres_quote_identifier('user'),
+    dbt_bigquery_federation._federation_provider_quote_identifier('cloud_sql_postgres', 'user'),
     '"user"'
   ) %}
   {% do dbt_unittest.assert_equals(
-    dbt_bigquery_federation._cloud_sql_postgres_quote_identifier('Orders'),
+    dbt_bigquery_federation._federation_provider_quote_identifier('cloud_sql_postgres', 'Orders'),
     '"Orders"'
   ) %}
   {% do dbt_unittest.assert_equals(
-    dbt_bigquery_federation._cloud_sql_postgres_quote_identifier('order-id'),
+    dbt_bigquery_federation._federation_provider_quote_identifier('cloud_sql_postgres', 'order-id'),
     '"order-id"'
   ) %}
   {% do dbt_unittest.assert_equals(
-    dbt_bigquery_federation._cloud_sql_postgres_quote_identifier('weird"name'),
+    dbt_bigquery_federation._federation_provider_quote_identifier('cloud_sql_postgres', 'weird"name'),
     '"weird""name"'
   ) %}
 {% endmacro %}

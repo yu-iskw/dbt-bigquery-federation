@@ -34,9 +34,3 @@ docs:
           - 'docs/*.md'
           - 'docs/**/*.md'
           - 'README.md'
-
-action:
-  - changed-files:
-      - any-glob-to-any-file:
-          - '.github/actions/generate-models/*'
-          - '.github/actions/generate-models/**/*'

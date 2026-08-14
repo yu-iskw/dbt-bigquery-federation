@@ -1,6 +1,6 @@
 # Macros
 
-Package macros for pinned BigQuery `EXTERNAL_QUERY` planning.
+Package macros for BigQuery `EXTERNAL_QUERY` planning (live, auto, and pinned metadata).
 
 Public entrypoints:
 

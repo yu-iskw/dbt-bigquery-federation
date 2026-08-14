@@ -53,7 +53,7 @@ run-unit-tests-postgres:
 
 run-unit-tests: clean run-unit-tests-postgres
 
-run-unit-tests-fusion:
+run-unit-tests-fusion: clean
 	./scripts/run_with_postgres_container.sh \
 		$(UV_RUN_NOX_FUSION) -s fusion_unit_tests
 
@@ -63,7 +63,7 @@ run-integration-tests-postgres:
 
 run-integration-tests: clean run-integration-tests-postgres
 
-run-integration-tests-fusion:
+run-integration-tests-fusion: clean
 	./scripts/run_with_postgres_container.sh \
 		$(UV_RUN_NOX_FUSION) -s fusion_integration_tests
 

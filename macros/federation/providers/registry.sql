@@ -1,32 +1,26 @@
 {% macro _federation_provider_descriptor(provider) %}
+  {% set postgres_caps = {
+    'schema_discovery': true,
+    'select_star_pushdown': true,
+    'decimal_default_option': true,
+    'query_execution_priority': false,
+    'arrays': false,
+    'structs': false
+  } %}
   {% set providers = {
     'cloud_sql_postgres': {
       'connection_kind': 'cloud_sql',
       'dialect': 'postgres',
       'metadata_profile': 'postgres_information_schema',
       'type_profile': 'postgres_federation',
-      'capabilities': {
-        'schema_discovery': true,
-        'select_star_pushdown': true,
-        'decimal_default_option': true,
-        'query_execution_priority': false,
-        'arrays': false,
-        'structs': false
-      }
+      'capabilities': postgres_caps
     },
     'alloydb_postgres': {
       'connection_kind': 'alloydb',
       'dialect': 'postgres',
       'metadata_profile': 'postgres_information_schema',
       'type_profile': 'postgres_federation',
-      'capabilities': {
-        'schema_discovery': true,
-        'select_star_pushdown': true,
-        'decimal_default_option': true,
-        'query_execution_priority': false,
-        'arrays': false,
-        'structs': false
-      }
+      'capabilities': postgres_caps
     },
     'spanner_google_sql': {
       'connection_kind': 'spanner',

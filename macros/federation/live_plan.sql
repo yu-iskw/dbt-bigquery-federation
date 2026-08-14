@@ -1,4 +1,4 @@
-{% macro _federation_try_plan_columns(connection_cfg, schema, table, columns, type_policy=None, overrides=None) %}
+{% macro _federation_try_plan_columns(connection_cfg, schema, table, columns, type_policy=None, overrides=None, metadata_source='live') %}
   {% set relation = connection_cfg.provider ~ ' ' ~ schema ~ '.' ~ table %}
   {% set policy_result = dbt_bigquery_federation._federation_resolve_policy(connection_cfg, type_policy) %}
   {% if not policy_result.ok %}
@@ -42,7 +42,7 @@
     'remote_sql': sql_plan.remote_sql,
     'warnings': folded.warnings,
     'columns': folded.columns,
-    'metadata_source': 'live'
+    'metadata_source': metadata_source
   }}) }}
 {% endmacro %}
 

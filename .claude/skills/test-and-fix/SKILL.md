@@ -1,6 +1,6 @@
 ---
 name: test-and-fix
-description: Autonomously run tests, analyze failures, and fix them for this dbt package template (Postgres and DuckDB, nested integration_tests). Use make run-unit-tests and make run-integration-tests from the repo root unless the user specifies otherwise.
+description: Autonomously run tests, analyze failures, and fix them for this dbt package (Postgres Jinja engine, nested integration_tests). Use make run-unit-tests and make run-integration-tests from the repo root unless the user specifies otherwise.
 ---
 
 # Test and Fix
@@ -13,7 +13,7 @@ This skill provides an autonomous loop to identify, analyze, and fix test failur
 
 1. **Identify**: Run tests from the **repository root** (not inside `integration_tests/` unless debugging).
    - Confirm scope with the user when a **full** run is expensive (full suite = several nox sessions and Postgres Docker).
-   - **`make run-unit-tests`** — macro-runner tests on Postgres and DuckDB for dbt-core 1.10 and 1.11.
+   - **`make run-unit-tests`** — macro-runner tests on Postgres for dbt-core 1.10 and 1.11.
    - **`make run-integration-tests`** — `dbt build` for the example project on the same adapters and core lines.
    - **`make test`** — runs **both** `run-unit-tests` and `run-integration-tests` (full dbt-core lane).
    - **Fusion** (optional): `make run-unit-tests-fusion`, `make run-integration-tests-fusion`, or **`make run-fusion-tests`** for both Fusion lanes.

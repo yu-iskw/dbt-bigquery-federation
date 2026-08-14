@@ -64,7 +64,7 @@ def bigquery_emulator_tests(session, uv_group):
     """Run dbt-bigquery debug/parse/compile against bigquery-emulator."""
     install_dependencies(session, uv_group)
     dbt_cmd = get_dbt_command(session, uv_group)
-    env = build_env(session, uv_group, "bigquery", dbt_cmd)
+    env = build_env(session, uv_group, dbt_cmd)
     run_deps(session, dbt_cmd, "bigquery", env)
     session.run(
         "bash",
