@@ -3,16 +3,16 @@ set -euo pipefail
 
 TARGET="bigquery"
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --target)
-      TARGET="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown argument: $1" >&2
-      exit 2
-      ;;
-  esac
+	case "$1" in
+	--target)
+		TARGET="$2"
+		shift 2
+		;;
+	*)
+		echo "Unknown argument: $1" >&2
+		exit 2
+		;;
+	esac
 done
 
 DBT_CMD="${DBT_CMD:-dbt}"
@@ -29,15 +29,15 @@ DBT_CMD="${DBT_CMD:-dbt}"
 # bigquery-emulator does not currently implement Connection API federation, so
 # real Cloud SQL/AlloyDB/Spanner behavior remains an authenticated GCP E2E concern.
 "${DBT_CMD}" compile \
-  --profiles-dir profiles \
-  --target "${TARGET}" \
-  --select stg_federated_orders stg_federated_orders_table
+	--profiles-dir profiles \
+	--target "${TARGET}" \
+	--select stg_federated_orders stg_federated_orders_table
 
 for model in stg_federated_orders stg_federated_orders_table; do
-  compiled="target/compiled/dbt_bigquery_federation_integration_tests/models/federation/${model}.sql"
-  test -f "${compiled}"
-  grep -q "EXTERNAL_QUERY" "${compiled}"
-  grep -q "projects/example/locations/us/connections/application-pg" "${compiled}"
+	compiled="target/compiled/dbt_bigquery_federation_integration_tests/models/federation/${model}.sql"
+	test -f "${compiled}"
+	grep -q "EXTERNAL_QUERY" "${compiled}"
+	grep -q "projects/example/locations/us/connections/application-pg" "${compiled}"
 done
 
 test -f target/manifest.json

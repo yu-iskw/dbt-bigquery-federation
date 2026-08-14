@@ -4,74 +4,59 @@ version = "0.1.0"
 description = "Integration tests for dbt_bigquery_federation"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-    "pytz>=2015.7",
-    "nox>=2024.10.9",
-]
+dependencies = ["pytz>=2015.7", "nox>=2024.10.9"]
 
 [dependency-groups]
 dbt-fusion = []
-dbt-core-1-10 = [
-    "dbt-core>=1.10,<1.11",
-    "dbt-postgres>=1.10,<1.11",
-]
-dbt-core-1-11 = [
-    "dbt-core>=1.11,<1.12",
-    "dbt-postgres>=1.10,<1.11",
-]
+dbt-core-1-10 = ["dbt-core>=1.10,<1.11", "dbt-postgres>=1.10,<1.11"]
+dbt-core-1-11 = ["dbt-core>=1.11,<1.12", "dbt-postgres>=1.10,<1.11"]
 # These groups run against goccy/bigquery-emulator in CI. Real EXTERNAL_QUERY
 # federation remains covered by authenticated GCP E2E tests.
-dbt-bigquery-1-10 = [
-    "dbt-core>=1.10,<1.11",
-    "dbt-bigquery>=1.10,<1.11",
-]
-dbt-bigquery-1-11 = [
-    "dbt-core>=1.11,<1.12",
-    "dbt-bigquery>=1.11,<1.12",
-]
+dbt-bigquery-1-10 = ["dbt-core>=1.10,<1.11", "dbt-bigquery>=1.10,<1.11"]
+dbt-bigquery-1-11 = ["dbt-core>=1.11,<1.12", "dbt-bigquery>=1.11,<1.12"]
 
 [tool.uv]
 conflicts = [
-    [
-        { group = "dbt-fusion" },
-        { group = "dbt-core-1-10" },
-    ],
-    [
-        { group = "dbt-fusion" },
-        { group = "dbt-core-1-11" },
-    ],
-    [
-        { group = "dbt-fusion" },
-        { group = "dbt-bigquery-1-10" },
-    ],
-    [
-        { group = "dbt-fusion" },
-        { group = "dbt-bigquery-1-11" },
-    ],
-    [
-        { group = "dbt-core-1-10" },
-        { group = "dbt-core-1-11" },
-    ],
-    [
-        { group = "dbt-core-1-10" },
-        { group = "dbt-bigquery-1-10" },
-    ],
-    [
-        { group = "dbt-core-1-10" },
-        { group = "dbt-bigquery-1-11" },
-    ],
-    [
-        { group = "dbt-core-1-11" },
-        { group = "dbt-bigquery-1-10" },
-    ],
-    [
-        { group = "dbt-core-1-11" },
-        { group = "dbt-bigquery-1-11" },
-    ],
-    [
-        { group = "dbt-bigquery-1-10" },
-        { group = "dbt-bigquery-1-11" },
-    ],
+  [
+    { group = "dbt-fusion" },
+    { group = "dbt-core-1-10" },
+  ],
+  [
+    { group = "dbt-fusion" },
+    { group = "dbt-core-1-11" },
+  ],
+  [
+    { group = "dbt-fusion" },
+    { group = "dbt-bigquery-1-10" },
+  ],
+  [
+    { group = "dbt-fusion" },
+    { group = "dbt-bigquery-1-11" },
+  ],
+  [
+    { group = "dbt-core-1-10" },
+    { group = "dbt-core-1-11" },
+  ],
+  [
+    { group = "dbt-core-1-10" },
+    { group = "dbt-bigquery-1-10" },
+  ],
+  [
+    { group = "dbt-core-1-10" },
+    { group = "dbt-bigquery-1-11" },
+  ],
+  [
+    { group = "dbt-core-1-11" },
+    { group = "dbt-bigquery-1-10" },
+  ],
+  [
+    { group = "dbt-core-1-11" },
+    { group = "dbt-bigquery-1-11" },
+  ],
+  [
+    { group = "dbt-bigquery-1-10" },
+    { group = "dbt-bigquery-1-11" },
+  ],
 ]
 
 [tool.setuptools]
