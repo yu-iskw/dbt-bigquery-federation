@@ -25,8 +25,9 @@ DBT_CMD="${DBT_CMD:-dbt}"
 
 # Compile pinned federation models through the actual BigQuery adapter. This is
 # the boundary that could not be exercised in credential-free CI before the
-# emulator was introduced. The generated EXTERNAL_QUERY is not executed here;
-# real federation remains the responsibility of authenticated GCP E2E tests.
+# emulator was introduced. EXTERNAL_QUERY itself is intentionally not executed:
+# bigquery-emulator does not currently implement Connection API federation, so
+# real Cloud SQL/AlloyDB/Spanner behavior remains an authenticated GCP E2E concern.
 "${DBT_CMD}" compile \
   --profiles-dir profiles \
   --target "${TARGET}" \
