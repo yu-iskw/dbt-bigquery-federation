@@ -18,7 +18,8 @@ terraform -chdir="${TF_DIR}" output >/dev/null
 PROJECT_ID="$(terraform -chdir="${TF_DIR}" output -raw project_id)"
 BQ_LOCATION="$(terraform -chdir="${TF_DIR}" output -raw bigquery_location)"
 ALLOYDB_CONNECTION_ID="$(terraform -chdir="${TF_DIR}" output -raw alloydb_bigquery_connection_id)"
-SPANNER_CONNECTION_ID="$(terraform -chdir="${TF_DIR}" output -raw spanner_bigquery_connection_id)"
+SPANNER_CONNECTION_ID="$(terraform -chdir="${TF_DIR}" output -raw spanner_data_bigquery_connection_id)"
+SPANNER_METADATA_CONNECTION_ID="$(terraform -chdir="${TF_DIR}" output -raw spanner_metadata_bigquery_connection_id)"
 ALLOYDB_INSTANCE_URI="$(terraform -chdir="${TF_DIR}" output -raw alloydb_instance_uri)"
 ALLOYDB_DATABASE="$(terraform -chdir="${TF_DIR}" output -raw alloydb_database)"
 ALLOYDB_USER="$(terraform -chdir="${TF_DIR}" output -raw alloydb_user)"
@@ -62,7 +63,7 @@ export DBT_BIGQUERY_DATASET="dbt_bigquery_federation_e2e"
 export DBT_BIGQUERY_LOCATION="${BQ_LOCATION}"
 
 alloydb_vars="$(printf '{"dbt_bigquery_federation":{"connections":{"analytics_alloydb":{"connection_id":"%s","provider":"alloydb_postgres","defaults":{"schema":"public"},"types":{"policy":"safe"}}}}}' "${ALLOYDB_CONNECTION_ID}")"
-spanner_vars="$(printf '{"dbt_bigquery_federation":{"connections":{"spanner_app":{"connection_id":"%s","provider":"spanner_google_sql","defaults":{"schema":""},"types":{"policy":"safe"}}}}}' "${SPANNER_CONNECTION_ID}")"
+spanner_vars="$(printf '{"dbt_bigquery_federation":{"connections":{"spanner_app":{"connection_id":"%s","metadata_connection_id":"%s","provider":"spanner_google_sql","defaults":{"schema":""},"types":{"policy":"safe"}}}}}' "${SPANNER_CONNECTION_ID}" "${SPANNER_METADATA_CONNECTION_ID}")"
 
 cd "${INTEGRATION_DIR}"
 uv run --group dbt-bigquery-1-11 dbt debug --profiles-dir profiles --target bigquery_gcp
