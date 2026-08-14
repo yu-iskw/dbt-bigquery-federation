@@ -12,7 +12,14 @@ if _spec is None or _spec.loader is None:
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
-from nox_helpers import ADAPTERS, build_env, get_dbt_command, install_dependencies, run_dbt_shell_script, run_deps
+from nox_helpers import (  # isort: skip  # noqa: E402
+    ADAPTERS,
+    build_env,
+    get_dbt_command,
+    install_dependencies,
+    run_dbt_shell_script,
+    run_deps,
+)
 
 nox.options.sessions = ["dev_unit_tests", "dev_integration_tests"]
 nox.options.default_venv_backend = "uv"
