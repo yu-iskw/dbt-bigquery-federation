@@ -12,10 +12,15 @@ default:
       threads: "{{ env_var('DBT_THREADS', '4') | as_number }}"
     bigquery:
       type: bigquery
-      method: oauth
+      # The emulator does not validate OAuth bearer tokens. oauth-secrets lets
+      # dbt-bigquery construct credentials without ADC while api_endpoint routes
+      # the official google-cloud-bigquery client to the local emulator.
+      method: oauth-secrets
+      token: "{{ env_var('DBT_BIGQUERY_TOKEN', 'bigquery-emulator') }}"
       project: "{{ env_var('DBT_BIGQUERY_PROJECT', 'dbt-bigquery-federation-ci') }}"
       dataset: "{{ env_var('DBT_BIGQUERY_DATASET', 'dbt_bigquery_federation_ci') }}"
       location: "{{ env_var('DBT_BIGQUERY_LOCATION', 'US') }}"
+      api_endpoint: "{{ env_var('DBT_BIGQUERY_API_ENDPOINT', 'http://127.0.0.1:9050') }}"
       threads: "{{ env_var('DBT_THREADS', '4') | as_number }}"
     duckdb:
       type: duckdb
