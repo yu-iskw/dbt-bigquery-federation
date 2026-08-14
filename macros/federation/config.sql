@@ -28,10 +28,11 @@
     {{ return({'ok': false, 'error': 'Connection ' ~ connection_name ~ ' must be a mapping', 'connection': none}) }}
   {% endif %}
   {% set provider = conn.get('provider') %}
-  {% if provider != 'cloud_sql_postgres' %}
+  {% set descriptor = dbt_bigquery_federation._federation_provider_descriptor(provider) %}
+  {% if descriptor is none %}
     {{ return({
       'ok': false,
-      'error': 'Unsupported provider ' ~ (provider | string) ~ ' for ' ~ connection_name ~ '. v0.1 supports cloud_sql_postgres only.',
+      'error': 'Unsupported federation provider ' ~ (provider | string) ~ ' for ' ~ connection_name,
       'connection': none
     }) }}
   {% endif %}
@@ -61,6 +62,11 @@
       'alias': connection_name,
       'connection_id': cid.value | string,
       'provider': provider,
+      'connection_kind': descriptor.connection_kind,
+      'dialect': descriptor.dialect,
+      'metadata_profile': descriptor.metadata_profile,
+      'type_profile': descriptor.type_profile,
+      'capabilities': descriptor.capabilities,
       'default_schema': defaults.get('schema'),
       'policy': types.get('policy', 'safe')
     }
@@ -73,11 +79,12 @@
   {% if overrides is not mapping %}
     {{ exceptions.raise_compiler_error('vars.dbt_bigquery_federation.type_overrides must be a mapping') }}
   {% endif %}
-  {# v0.1 type_overrides are package-wide; the only provider is cloud_sql_postgres. #}
+  {# All currently registered providers share the postgres_federation type profile.
+     Spanner will introduce provider/profile-scoped overrides instead of extending this assumption. #}
   {% set normalized = namespace(map={}) %}
   {% for key, value in overrides.items() %}
-    {% set normalized.key = dbt_bigquery_federation._federation_provider_normalize_type_name('cloud_sql_postgres', key) %}
-    {% do normalized.map.update({normalized.key: value}) %}
+    {% set normalized_key = dbt_bigquery_federation._postgres_federation_normalize_type_name(key) %}
+    {% do normalized.map.update({normalized_key: value}) %}
   {% endfor %}
   {{ return(normalized.map) }}
 {% endmacro %}
