@@ -48,14 +48,17 @@ gcloud spanner databases execute-sql "${SPANNER_DATABASE}" \
 export DBT_BIGQUERY_PROJECT="${PROJECT_ID}"
 export DBT_BIGQUERY_DATASET="dbt_bigquery_federation_e2e"
 export DBT_BIGQUERY_LOCATION="${BQ_LOCATION}"
-export DBT_ALLOYDB_CONNECTION_ID="${ALLOYDB_CONNECTION_ID}"
-export DBT_SPANNER_CONNECTION_ID="${SPANNER_CONNECTION_ID}"
+
+alloydb_vars="$(printf '{"dbt_bigquery_federation":{"connections":{"analytics_alloydb":{"connection_id":"%s","provider":"alloydb_postgres","defaults":{"schema":"public"},"types":{"policy":"safe"}}}}}' "${ALLOYDB_CONNECTION_ID}")"
+spanner_vars="$(printf '{"dbt_bigquery_federation":{"connections":{"spanner_app":{"connection_id":"%s","provider":"spanner_google_sql","defaults":{"schema":""},"types":{"policy":"safe"}}}}}' "${SPANNER_CONNECTION_ID}")"
 
 cd "${INTEGRATION_DIR}"
 uv run --group dbt-bigquery-1-11 dbt debug --profiles-dir profiles --target bigquery_gcp
 uv run --group dbt-bigquery-1-11 dbt run-operation get_remote_columns --profiles-dir profiles --target bigquery_gcp \
+  --vars "${alloydb_vars}" \
   --args '{connection: analytics_alloydb, schema: public, table: orders}'
 uv run --group dbt-bigquery-1-11 dbt run-operation get_remote_columns --profiles-dir profiles --target bigquery_gcp \
+  --vars "${spanner_vars}" \
   --args '{connection: spanner_app, schema: "", table: Orders}'
 
 alloydb_count="$(bq query --quiet --use_legacy_sql=false --format=csv --location="${BQ_LOCATION}" \

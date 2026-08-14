@@ -37,17 +37,10 @@ vars:
         types:
           policy: safe
       analytics_alloydb:
-        connection_id: "{{ env_var('DBT_ALLOYDB_CONNECTION_ID', 'projects/example/locations/us/connections/analytics-alloydb') }}"
+        connection_id: projects/example/locations/us/connections/analytics-alloydb
         provider: alloydb_postgres
         defaults:
           schema: public
-        types:
-          policy: safe
-      spanner_app:
-        connection_id: "{{ env_var('DBT_SPANNER_CONNECTION_ID', 'projects/example/locations/us/connections/spanner-app') }}"
-        provider: spanner_google_sql
-        defaults:
-          schema: ""
         types:
           policy: safe
     tables:
