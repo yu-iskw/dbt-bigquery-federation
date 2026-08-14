@@ -1,12 +1,12 @@
 {% macro test_plan_all_native_passthrough() %}
   {% set result = dbt_bigquery_federation._federation_try_plan('application_pg', 'orders', 'public') %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
-  {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
-  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
   {% do dbt_unittest.assert_equals(result.plan.decimal_option, none) %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
-    'select * from "public"."orders"'
+    'select "id", "amount", "created_at" from "public"."orders"'
   ) %}
   {% do dbt_unittest.assert_equals(result.plan.warnings, []) %}
 {% endmacro %}
@@ -62,13 +62,13 @@
     'public'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
-  {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
   {% do dbt_unittest.assert_equals(result.plan.decimal_option, none) %}
-  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
   {% do dbt_unittest.assert_equals(result.plan.warnings, []) %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
-    'select * from "public"."amounts"'
+    'select "amount" from "public"."amounts"'
   ) %}
 {% endmacro %}
 
@@ -139,13 +139,13 @@
     'public'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
-  {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
-  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
   {% do dbt_unittest.assert_equals(result.plan.decimal_option, 'bignumeric') %}
   {% do dbt_unittest.assert_equals(result.plan.warnings, []) %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
-    'select * from "public"."bignumeric_decimals"'
+    'select "wide_amount", "wide_fee" from "public"."bignumeric_decimals"'
   ) %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].name, 'wide_amount') %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'passthrough') %}
@@ -227,11 +227,11 @@
 {% macro test_plan_bit_native_passthrough() %}
   {% set result = dbt_bigquery_federation._federation_try_plan('application_pg', 'bits', 'public') %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
-  {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
-  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
-    'select * from "public"."bits"'
+    'select "flags", "packed", "masked" from "public"."bits"'
   ) %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].name, 'flags') %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].source_type, 'bit') %}
@@ -300,13 +300,13 @@
 {% macro test_plan_json_native_passthrough() %}
   {% set native = dbt_bigquery_federation._federation_try_plan('application_pg', 'json_native', 'public') %}
   {% do dbt_unittest.assert_equals(native.ok, true) %}
-  {% do dbt_unittest.assert_equals(native.plan.body, 'passthrough') %}
-  {% do dbt_unittest.assert_equals(native.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(native.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(native.plan.pushdown, 'lost') %}
   {% do dbt_unittest.assert_equals(native.plan.columns[0].action, 'passthrough') %}
   {% do dbt_unittest.assert_equals(native.plan.columns[0].target_type, 'STRING') %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(native.plan.remote_sql),
-    'select * from "public"."json_native"'
+    'select "payload" from "public"."json_native"'
   ) %}
 {% endmacro %}
 

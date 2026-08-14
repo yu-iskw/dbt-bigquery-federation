@@ -215,9 +215,9 @@
   }) }}
 {% endmacro %}
 
-{% macro _federation_build_remote_sql(provider, schema, table, columns) %}
+{% macro _federation_build_remote_sql(provider, schema, table, columns, stable=false) %}
   {% set relation = dbt_bigquery_federation._federation_provider_render_remote_relation(provider, schema, table) %}
-  {% set ns = namespace(needs_projection=false) %}
+  {% set ns = namespace(needs_projection=stable) %}
   {% for col in columns %}
     {% if col.action == 'remote_cast' %}
       {% set ns.needs_projection = true %}

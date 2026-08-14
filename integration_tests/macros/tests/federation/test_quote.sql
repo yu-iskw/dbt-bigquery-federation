@@ -33,3 +33,18 @@
     "'it''s'"
   ) %}
 {% endmacro %}
+
+{% macro test_spanner_quote_literal_uses_googlesql_escapes() %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_provider_quote_literal('spanner_google_sql', "it's"),
+    "'" ~ 'it' ~ "\\'" ~ 's' ~ "'"
+  ) %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_provider_quote_literal('spanner_google_sql', 'a\\b'),
+    "'" ~ 'a\\\\b' ~ "'"
+  ) %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_provider_quote_literal('spanner_google_sql', "x\\' OR 1=1 --"),
+    "'" ~ 'x\\\\' ~ "\\'" ~ ' OR 1=1 --' ~ "'"
+  ) %}
+{% endmacro %}

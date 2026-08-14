@@ -6,7 +6,15 @@
 {% endmacro %}
 
 {% macro _spanner_google_federation_quote_literal(value) %}
-  {{ return("'" ~ (value | string | replace("'", "''")) ~ "'") }}
+  {% set text = value | string %}
+  {% set escaped = text
+    | replace('\\', '\\\\')
+    | replace("'", "\\'")
+    | replace('\n', '\\n')
+    | replace('\r', '\\r')
+    | replace('\t', '\\t')
+  %}
+  {{ return("'" ~ escaped ~ "'") }}
 {% endmacro %}
 
 {% macro _spanner_google_federation_normalize_type_name(data_type) %}

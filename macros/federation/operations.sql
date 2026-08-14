@@ -10,8 +10,8 @@
   {% set key = dbt_bigquery_federation._federation_pin_key(connection, result.schema, table) %}
   {% set lines = namespace(rows=['tables:', '  ' ~ key ~ ':', '    columns:']) %}
   {% for col in result.columns %}
-    {% do lines.rows.append('      - name: ' ~ col.name) %}
-    {% do lines.rows.append('        data_type: ' ~ col.data_type) %}
+    {% do lines.rows.append('      - name: ' ~ dbt_bigquery_federation._federation_yaml_double_quoted(col.name)) %}
+    {% do lines.rows.append('        data_type: ' ~ dbt_bigquery_federation._federation_yaml_double_quoted(col.data_type)) %}
     {% if col.precision is not none %}
       {% do lines.rows.append('        precision: ' ~ (col.precision | string)) %}
     {% endif %}
@@ -23,6 +23,17 @@
   {% do log(rendered, info=True) %}
   {{ return(rendered) }}
 {%- endmacro %}
+
+{% macro _federation_yaml_double_quoted(value) %}
+  {% set text = value | string %}
+  {% set escaped = text
+    | replace('\\', '\\\\')
+    | replace('"', '\\"')
+    | replace('\n', '\\n')
+    | replace('\r', '\\r')
+  %}
+  {{ return('"' ~ escaped ~ '"') }}
+{% endmacro %}
 
 {% macro _federation_column_signature(column) %}
   {{ return({

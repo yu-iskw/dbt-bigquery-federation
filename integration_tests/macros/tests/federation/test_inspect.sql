@@ -1,9 +1,9 @@
 {% macro test_federation_inspect_reports_pushdown() %}
   {% set kept = dbt_bigquery_federation._federation_inspect_result('application_pg', 'public', 'orders') %}
   {% do dbt_unittest.assert_equals(kept.ok, true) %}
-  {% do dbt_unittest.assert_equals(kept.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(kept.plan.pushdown, 'lost') %}
   {% do dbt_unittest.assert_equals('metadata_source=pinned' in kept.report, true) %}
-  {% do dbt_unittest.assert_equals('pushdown=kept' in kept.report, true) %}
+  {% do dbt_unittest.assert_equals('pushdown=lost' in kept.report, true) %}
   {% do dbt_unittest.assert_equals(kept.plan.columns[0].action, 'passthrough') %}
   {% do dbt_unittest.assert_equals(kept.plan.columns[0].lossiness, 'exact') %}
 
