@@ -7,7 +7,7 @@
   {% do test_external_query_renders_without_planning() %}
   {% do test_postgres_metadata_remote_sql() %}
   {% do test_alloydb_metadata_uses_postgres_profile() %}
-  {% do test_metadata_query_wraps_external_query() %}
+  {% do test_metadata_external_query_wrapper() %}
   {% do test_metadata_mode_auto_prefers_pin() %}
   {% do test_metadata_mode_live_is_explicit() %}
   {% do test_metadata_mode_auto_uses_live_without_pin() %}
