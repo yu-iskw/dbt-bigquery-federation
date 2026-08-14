@@ -11,7 +11,16 @@ output "alloydb_bigquery_connection_id" {
 }
 
 output "spanner_bigquery_connection_id" {
-  value = module.spanner.bigquery_connection_id
+  description = "Backward-compatible alias for the parallel Spanner data connection."
+  value       = module.spanner.bigquery_data_connection_id
+}
+
+output "spanner_data_bigquery_connection_id" {
+  value = module.spanner.bigquery_data_connection_id
+}
+
+output "spanner_metadata_bigquery_connection_id" {
+  value = module.spanner.bigquery_metadata_connection_id
 }
 
 output "alloydb_instance_uri" {
