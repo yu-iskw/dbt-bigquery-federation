@@ -38,6 +38,7 @@
   {% do test_plan_unsafe_remote_type_errors() %}
   {% do test_alloydb_postgres_plan_uses_shared_profile() %}
   {% do test_alloydb_postgres_router_matches_postgres_dialect() %}
+  {% do test_alloydb_postgres_live_plan_conformance() %}
   {% do test_spanner_google_provider_descriptor() %}
   {% do test_spanner_google_metadata_query() %}
   {% do test_spanner_google_type_mapping() %}
