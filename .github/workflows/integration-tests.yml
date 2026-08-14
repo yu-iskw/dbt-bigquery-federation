@@ -100,7 +100,7 @@ jobs:
           DBT_BIGQUERY_LOCATION: US
         run: |
           mkdir -p target
-          uv run nox -s "bigquery_compile_tests(uv_group='${{ matrix.dbt-group }}')"
+          uv run nox -s "bigquery_parse_tests(uv_group='${{ matrix.dbt-group }}')"
 
       - name: Upload logs on failure
         if: failure()
