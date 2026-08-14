@@ -103,7 +103,7 @@ jobs:
             ghcr.io/goccy/bigquery-emulator:0.8.1 \
             --project=dbt-bigquery-federation-ci \
             --dataset=dbt_bigquery_federation_ci
-          for i in {1..30}; do
+          for _ in {1..30}; do
             if curl --fail --silent \
               "http://127.0.0.1:9050/bigquery/v2/projects/dbt-bigquery-federation-ci/datasets" \
               >/dev/null; then
