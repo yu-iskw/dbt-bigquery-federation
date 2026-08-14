@@ -1,0 +1,4 @@
+project_id       = "your-gcp-project"
+runner_principal = "user:you@example.com"
+region           = "us-central1"
+name_prefix      = "dbt-bq-fed-e2e"
