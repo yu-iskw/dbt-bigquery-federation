@@ -43,6 +43,16 @@ vars:
           schema: public
         types:
           policy: safe
+      spanner_app:
+        connection_id: projects/example/locations/us/connections/spanner-data
+        metadata_connection_id: projects/example/locations/us/connections/spanner-metadata
+        provider: spanner_google_sql
+        defaults:
+          schema: ""
+        options:
+          query_execution_priority: low
+        types:
+          policy: safe
     tables:
       application_pg.public.orders:
         columns:
