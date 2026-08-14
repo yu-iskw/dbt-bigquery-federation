@@ -58,6 +58,7 @@
       {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' has duplicate column name ' ~ col_name, 'pin': none, 'connection': none}) }}
     {% endif %}
     {% do seen.names.append(col_name) %}
+    {% do col.update({'name': col_name}) %}
     {% for field in ['precision', 'scale'] %}
       {% set raw = col.get(field) %}
       {% if raw is not none and modules.re.match('^[0-9]+$', raw | string) is none %}

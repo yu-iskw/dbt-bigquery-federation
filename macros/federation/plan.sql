@@ -79,6 +79,9 @@
   {% endif %}
   {% set source_type = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, data_type) %}
   {% set override = dbt_bigquery_federation._federation_lookup_override(column, type_overrides, invocation_overrides, source_type) %}
+  {% if override is not none and override is not mapping %}
+    {{ return({'ok': false, 'error': 'Override for column ' ~ name ~ ' must be a mapping', 'classified': none}) }}
+  {% endif %}
   {% if override is mapping %}
     {% set strategy = override.get('strategy') | string | lower %}
     {% if strategy == 'remote_cast' %}
