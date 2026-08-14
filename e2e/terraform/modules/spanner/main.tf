@@ -6,10 +6,10 @@ resource "google_spanner_instance" "this" {
   processing_units = 100
 }
 
-# checkov:skip=CKV_GCP_119:Deletion protection is intentionally disabled for short-lived developer-created E2E resources so cleanup cannot strand billable infrastructure.
-# checkov:skip=CKV_GCP_120:Drop protection is intentionally disabled for this disposable E2E database so terraform destroy remains deterministic.
-# checkov:skip=CKV_GCP_93:This fixture contains synthetic test data only; Google-managed encryption is sufficient for the ephemeral local E2E environment and avoids requiring a persistent KMS dependency.
 resource "google_spanner_database" "this" {
+  # checkov:skip=CKV_GCP_119:Deletion protection is intentionally disabled for short-lived developer-created E2E resources so cleanup cannot strand billable infrastructure.
+  # checkov:skip=CKV_GCP_120:Drop protection is intentionally disabled for this disposable E2E database so terraform destroy remains deterministic.
+  # checkov:skip=CKV_GCP_93:Synthetic test data uses Google-managed encryption; requiring a persistent KMS key would undermine the disposable local E2E lifecycle.
   project  = var.project_id
   instance = google_spanner_instance.this.name
   name     = "e2e"
