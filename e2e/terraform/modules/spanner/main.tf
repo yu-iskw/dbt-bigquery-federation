@@ -1,8 +1,8 @@
 resource "google_spanner_instance" "this" {
-  project      = var.project_id
-  name         = "${var.name_prefix}-spanner"
-  display_name = "dbt federation local E2E"
-  config       = "regional-${var.region}"
+  project          = var.project_id
+  name             = "${var.name_prefix}-spanner"
+  display_name     = "dbt federation local E2E"
+  config           = "regional-${var.region}"
   processing_units = 100
 }
 
