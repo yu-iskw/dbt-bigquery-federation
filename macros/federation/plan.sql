@@ -42,20 +42,6 @@
   }) }}
 {% endmacro %}
 
-{% macro _federation_copy_column(col, action, target_type, remote_type, lossiness) %}
-  {{ return({
-    'name': col.name,
-    'source_type': col.source_type,
-    'raw_data_type': col.raw_data_type,
-    'precision': col.precision,
-    'scale': col.scale,
-    'action': action,
-    'target_type': target_type,
-    'remote_type': remote_type,
-    'lossiness': lossiness
-  }) }}
-{% endmacro %}
-
 {% macro _federation_lookup_override(column, type_overrides, invocation_overrides, source_type) %}
   {% set col_name = column.get('name') | string %}
   {% if col_name in invocation_overrides %}
@@ -189,9 +175,9 @@
     {% if col.action != 'decimal' %}
       {% do folded.columns.append(col) %}
     {% elif scan.max_tier < 2 or dbt_bigquery_federation._federation_decimal_tier(col.precision, col.scale) < 2 %}
-      {% do folded.columns.append(dbt_bigquery_federation._federation_copy_column(col, 'passthrough', fold_cfg.native_target, none, 'exact')) %}
+      {% do folded.columns.append(dbt_bigquery_federation._federation_classified_column(col, col.source_type, 'passthrough', fold_cfg.native_target, none, 'exact')) %}
     {% else %}
-      {% do folded.columns.append(dbt_bigquery_federation._federation_copy_column(col, 'remote_cast', 'STRING', 'text', 'representation_change')) %}
+      {% do folded.columns.append(dbt_bigquery_federation._federation_classified_column(col, col.source_type, 'remote_cast', 'STRING', 'text', 'representation_change')) %}
     {% endif %}
   {% endfor %}
   {{ return({
@@ -205,25 +191,30 @@
 
 {% macro _federation_build_remote_sql(provider, schema, table, columns) %}
   {% set relation = dbt_bigquery_federation._federation_provider_render_remote_relation(provider, schema, table) %}
-  {% set ns = namespace(select_list=[], needs_projection=false) %}
+  {% set ns = namespace(needs_projection=false) %}
   {% for col in columns %}
-    {% set quoted_name = dbt_bigquery_federation._federation_provider_quote_identifier(provider, col.name) %}
     {% if col.action == 'remote_cast' %}
       {% set ns.needs_projection = true %}
-      {% set remote_type = col.remote_type if col.remote_type else 'text' %}
-      {% set expr = dbt_bigquery_federation._federation_provider_render_remote_cast(provider, quoted_name, remote_type) %}
-      {% do ns.select_list.append(expr ~ ' as ' ~ quoted_name) %}
-    {% else %}
-      {% do ns.select_list.append(quoted_name) %}
     {% endif %}
   {% endfor %}
   {% if not ns.needs_projection %}
     {{ return({'body': 'passthrough', 'pushdown': 'kept', 'remote_sql': 'select * from ' ~ relation}) }}
   {% endif %}
+  {% set projected = namespace(select_list=[]) %}
+  {% for col in columns %}
+    {% set quoted_name = dbt_bigquery_federation._federation_provider_quote_identifier(provider, col.name) %}
+    {% if col.action == 'remote_cast' %}
+      {% set remote_type = col.remote_type if col.remote_type else 'text' %}
+      {% set expr = dbt_bigquery_federation._federation_provider_render_remote_cast(provider, quoted_name, remote_type) %}
+      {% do projected.select_list.append(expr ~ ' as ' ~ quoted_name) %}
+    {% else %}
+      {% do projected.select_list.append(quoted_name) %}
+    {% endif %}
+  {% endfor %}
   {{ return({
     'body': 'projection',
     'pushdown': 'lost',
-    'remote_sql': 'select ' ~ (ns.select_list | join(', ')) ~ ' from ' ~ relation
+    'remote_sql': 'select ' ~ (projected.select_list | join(', ')) ~ ' from ' ~ relation
   }) }}
 {% endmacro %}
 

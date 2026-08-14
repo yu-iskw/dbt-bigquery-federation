@@ -10,7 +10,7 @@
   {% if connection_id is none %}
     {{ return(false) }}
   {% endif %}
-  {% set matched = modules.re.match('^projects/[^/]+/locations/[^/]+/connections/[^/]+$', connection_id | string) %}
+  {% set matched = modules.re.match('^projects/[^/]+/locations/[^/]+/connections/[^/]+\\Z', connection_id | string | trim) %}
   {{ return(matched is not none) }}
 {% endmacro %}
 
@@ -35,8 +35,11 @@
       'connection': none
     }) }}
   {% endif %}
-  {% set connection_id = conn.get('connection_id') %}
-  {% if not dbt_bigquery_federation._federation_connection_id_is_valid(connection_id) %}
+  {% set cid = namespace(value=conn.get('connection_id')) %}
+  {% if cid.value is not none %}
+    {% set cid.value = cid.value | string | trim %}
+  {% endif %}
+  {% if not dbt_bigquery_federation._federation_connection_id_is_valid(cid.value) %}
     {{ return({
       'ok': false,
       'error': 'connection_id for ' ~ connection_name ~ ' must match projects/PROJECT/locations/LOCATION/connections/NAME',
@@ -56,7 +59,7 @@
     'error': none,
     'connection': {
       'alias': connection_name,
-      'connection_id': connection_id | string,
+      'connection_id': cid.value | string,
       'provider': provider,
       'default_schema': defaults.get('schema'),
       'policy': types.get('policy', 'safe')

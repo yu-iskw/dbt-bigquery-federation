@@ -643,7 +643,6 @@ macros/
     pins.sql
     plan.sql
     render.sql
-    quote.sql
     inspect.sql
     providers/
       router.sql
