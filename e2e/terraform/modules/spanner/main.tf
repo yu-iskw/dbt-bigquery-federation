@@ -6,6 +6,9 @@ resource "google_spanner_instance" "this" {
   processing_units = 100
 }
 
+# checkov:skip=CKV_GCP_119:Deletion protection is intentionally disabled for short-lived developer-created E2E resources so cleanup cannot strand billable infrastructure.
+# checkov:skip=CKV_GCP_120:Drop protection is intentionally disabled for this disposable E2E database so terraform destroy remains deterministic.
+# checkov:skip=CKV_GCP_93:This fixture contains synthetic test data only; Google-managed encryption is sufficient for the ephemeral local E2E environment and avoids requiring a persistent KMS dependency.
 resource "google_spanner_database" "this" {
   project  = var.project_id
   instance = google_spanner_instance.this.name
@@ -45,6 +48,8 @@ resource "google_bigquery_connection_iam_member" "runner" {
   member        = var.runner_principal
 }
 
+# Spanner EXTERNAL_QUERY uses the querying principal's Spanner IAM when no
+# fine-grained database role is configured on the connection.
 resource "google_spanner_database_iam_member" "runner_reader" {
   project  = var.project_id
   instance = google_spanner_instance.this.name
@@ -53,6 +58,8 @@ resource "google_spanner_database_iam_member" "runner_reader" {
   member   = var.runner_principal
 }
 
+# Fixture loading uses gcloud spanner databases execute-sql as the same local
+# principal, so grant databaseUser in addition to the read-only query role.
 resource "google_spanner_database_iam_member" "runner_writer" {
   project  = var.project_id
   instance = google_spanner_instance.this.name
