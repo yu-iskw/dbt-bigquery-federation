@@ -45,11 +45,11 @@
   {% endif %}
   {% set defaults = conn.get('defaults', {}) %}
   {% if defaults is not mapping %}
-    {% set defaults = {} %}
+    {{ return({'ok': false, 'error': 'Connection ' ~ connection_name ~ ' defaults must be a mapping', 'connection': none}) }}
   {% endif %}
   {% set types = conn.get('types', {}) %}
   {% if types is not mapping %}
-    {% set types = {} %}
+    {{ return({'ok': false, 'error': 'Connection ' ~ connection_name ~ ' types must be a mapping', 'connection': none}) }}
   {% endif %}
   {{ return({
     'ok': true,
@@ -68,7 +68,7 @@
   {% set cfg = dbt_bigquery_federation._federation_get_config() %}
   {% set overrides = cfg.get('type_overrides', {}) %}
   {% if overrides is not mapping %}
-    {{ return({}) }}
+    {{ exceptions.raise_compiler_error('vars.dbt_bigquery_federation.type_overrides must be a mapping') }}
   {% endif %}
   {{ return(overrides) }}
 {% endmacro %}

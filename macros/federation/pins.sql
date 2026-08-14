@@ -42,6 +42,34 @@
   {% if columns is not sequence or columns is string %}
     {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' columns must be a list', 'pin': none, 'connection': none}) }}
   {% endif %}
+  {% if columns | length == 0 %}
+    {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' columns must not be empty', 'pin': none, 'connection': none}) }}
+  {% endif %}
+  {% set seen = namespace(names=[]) %}
+  {% for col in columns %}
+    {% if col is not mapping %}
+      {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' column entries must be mappings', 'pin': none, 'connection': none}) }}
+    {% endif %}
+    {% set col_name = col.get('name') | string | trim %}
+    {% if not col_name %}
+      {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' has a column with an empty name', 'pin': none, 'connection': none}) }}
+    {% endif %}
+    {% if col_name in seen.names %}
+      {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' has duplicate column name ' ~ col_name, 'pin': none, 'connection': none}) }}
+    {% endif %}
+    {% do seen.names.append(col_name) %}
+    {% for field in ['precision', 'scale'] %}
+      {% set raw = col.get(field) %}
+      {% if raw is not none and modules.re.match('^[0-9]+$', raw | string) is none %}
+        {{ return({
+          'ok': false,
+          'error': 'Pin ' ~ key ~ ' column ' ~ col_name ~ ' ' ~ field ~ ' must be a non-negative integer',
+          'pin': none,
+          'connection': none
+        }) }}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
   {{ return({
     'ok': true,
     'error': none,

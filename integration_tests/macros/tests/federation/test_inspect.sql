@@ -19,6 +19,8 @@
   {% endfor %}
   {% do dbt_unittest.assert_equals(found.uuid.action, 'remote_cast') %}
   {% do dbt_unittest.assert_equals(found.uuid.lossiness, 'representation_change') %}
+  {% do dbt_unittest.assert_equals('id\tbigint\tINT64\tpassthrough\texact\tkept' in lost.report, true) %}
+  {% do dbt_unittest.assert_equals('user_uuid\tuuid\tSTRING\tremote_cast\trepresentation_change\tlost' in lost.report, true) %}
 
   {% set live = dbt_bigquery_federation._federation_inspect_result('application_pg', 'public', 'orders', true) %}
   {% do dbt_unittest.assert_equals(live.ok, false) %}

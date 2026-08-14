@@ -63,6 +63,36 @@ vars:
             scale: 2
           - name: ratio
             data_type: numeric
+      application_pg.public.mystery:
+        columns:
+          - name: payload
+            data_type: citext
+      application_pg.public.amounts:
+        columns:
+          - name: amount
+            data_type: numeric
+            precision: 12
+            scale: 2
+      application_pg.public.wide_decimals:
+        columns:
+          - name: wide_amount
+            data_type: numeric
+            precision: 40
+            scale: 10
+          - name: ratio
+            data_type: numeric
+      application_pg.public.prices:
+        columns:
+          - name: price
+            data_type: money
+      application_pg.public.empty:
+        columns: []
+      application_pg.public.duplicates:
+        columns:
+          - name: id
+            data_type: bigint
+          - name: id
+            data_type: text
     type_overrides:
       money:
         strategy: remote_cast

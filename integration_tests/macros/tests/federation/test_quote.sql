@@ -1,7 +1,11 @@
 {% macro test_quote_safe_and_mixed_case_identifiers() %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._cloud_sql_postgres_quote_identifier('orders'),
-    'orders'
+    '"orders"'
+  ) %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._cloud_sql_postgres_quote_identifier('user'),
+    '"user"'
   ) %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._cloud_sql_postgres_quote_identifier('Orders'),

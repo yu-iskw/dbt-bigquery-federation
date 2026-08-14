@@ -6,7 +6,7 @@
   {% do dbt_unittest.assert_equals(result.plan.decimal_option, none) %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
-    'select * from public.orders'
+    'select * from "public"."orders"'
   ) %}
 {% endmacro %}
 
@@ -17,7 +17,7 @@
   {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
-    'select id, cast(user_uuid as text) as user_uuid, cast(payload as text) as payload from public.users'
+    'select "id", cast("user_uuid" as text) as "user_uuid", cast("payload" as text) as "payload" from "public"."users"'
   ) %}
 {% endmacro %}
 
@@ -35,10 +35,7 @@
   {% set result = dbt_bigquery_federation._federation_try_plan(
     'application_pg',
     'mystery',
-    'public',
-    none,
-    none,
-    [{'name': 'payload', 'data_type': 'citext'}]
+    'public'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
 {% endmacro %}
@@ -47,12 +44,7 @@
   {% set result = dbt_bigquery_federation._federation_try_plan(
     'application_pg',
     'amounts',
-    'public',
-    none,
-    none,
-    [
-      {'name': 'amount', 'data_type': 'numeric', 'precision': 12, 'scale': 2}
-    ]
+    'public'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
   {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
@@ -68,7 +60,7 @@
   {% do dbt_unittest.assert_equals(result.plan.decimal_option, none) %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
-    'select amount, cast(ratio as text) as ratio from public.mixed_decimals'
+    'select "amount", cast("ratio" as text) as "ratio" from "public"."mixed_decimals"'
   ) %}
   {% set amount_col = result.plan.columns[0] %}
   {% do dbt_unittest.assert_equals(amount_col.name, 'amount') %}
@@ -92,13 +84,7 @@
   {% set result = dbt_bigquery_federation._federation_try_plan(
     'application_pg',
     'wide_decimals',
-    'public',
-    none,
-    none,
-    [
-      {'name': 'wide_amount', 'data_type': 'numeric', 'precision': 40, 'scale': 10},
-      {'name': 'ratio', 'data_type': 'numeric'}
-    ]
+    'public'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
   {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
@@ -134,11 +120,16 @@
     'application_pg',
     'prices',
     'public',
-    'strict',
-    none,
-    [{'name': 'price', 'data_type': 'money'}]
+    'strict'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
   {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'remote_cast') %}
+{% endmacro %}
+
+{% macro test_plan_empty_and_duplicate_pins_error() %}
+  {% set empty = dbt_bigquery_federation._federation_try_plan('application_pg', 'empty', 'public') %}
+  {% do dbt_unittest.assert_equals(empty.ok, false) %}
+  {% set dup = dbt_bigquery_federation._federation_try_plan('application_pg', 'duplicates', 'public') %}
+  {% do dbt_unittest.assert_equals(dup.ok, false) %}
 {% endmacro %}

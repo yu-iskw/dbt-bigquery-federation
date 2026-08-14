@@ -13,6 +13,7 @@
   {% do test_plan_uuid_override_remote_cast() %}
   {% do test_plan_missing_pin_errors() %}
   {% do test_plan_type_overrides_money_under_strict() %}
+  {% do test_plan_empty_and_duplicate_pins_error() %}
   {% do test_federated_relation_renders_passthrough() %}
   {% do test_federation_inspect_reports_pushdown() %}
 {% endmacro %}

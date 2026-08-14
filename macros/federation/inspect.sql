@@ -38,9 +38,10 @@
     'COLUMN\tSOURCE TYPE\tTARGET\tACTION\tLOSSINESS\tPUSHDOWN'
   ]) %}
   {% for col in plan.columns %}
-    {% set lines.rows = lines.rows + [
-      col.name ~ '\t' ~ col.source_type ~ '\t' ~ col.target_type ~ '\t' ~ col.action ~ '\t' ~ col.lossiness ~ '\t' ~ plan.pushdown
-    ] %}
+    {% set col_pushdown = 'lost' if col.action == 'remote_cast' else 'kept' %}
+    {% do lines.rows.append(
+      col.name ~ '\t' ~ col.source_type ~ '\t' ~ col.target_type ~ '\t' ~ col.action ~ '\t' ~ col.lossiness ~ '\t' ~ col_pushdown
+    ) %}
   {% endfor %}
   {{ return({'ok': true, 'error': none, 'plan': plan, 'report': lines.rows | join('\n')}) }}
 {% endmacro %}

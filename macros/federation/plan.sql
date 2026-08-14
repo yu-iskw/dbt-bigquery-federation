@@ -18,6 +18,30 @@
   {{ return(dbt_bigquery_federation._federation_numeric_fits(precision, scale, 76, 38, 38)) }}
 {% endmacro %}
 
+{% macro _federation_decimal_tier(precision, scale) %}
+  {% if dbt_bigquery_federation._federation_fits_numeric(precision, scale) %}
+    {{ return(0) }}
+  {% endif %}
+  {% if dbt_bigquery_federation._federation_fits_bignumeric(precision, scale) %}
+    {{ return(1) }}
+  {% endif %}
+  {{ return(2) }}
+{% endmacro %}
+
+{% macro _federation_classified_column(column, source_type, action, target_type, remote_type, lossiness) %}
+  {{ return({
+    'name': column.get('name'),
+    'source_type': source_type,
+    'raw_data_type': column.get('raw_data_type', column.get('data_type')),
+    'precision': column.get('precision'),
+    'scale': column.get('scale'),
+    'action': action,
+    'target_type': target_type,
+    'remote_type': remote_type,
+    'lossiness': lossiness
+  }) }}
+{% endmacro %}
+
 {% macro _federation_copy_column(col, action, target_type, remote_type, lossiness) %}
   {{ return({
     'name': col.name,
@@ -26,40 +50,33 @@
     'precision': col.precision,
     'scale': col.scale,
     'action': action,
-    'kind': col.kind,
     'target_type': target_type,
     'remote_type': remote_type,
     'lossiness': lossiness
   }) }}
 {% endmacro %}
 
-{% macro _federation_column_name(column) %}
-  {% if column is not mapping %}
-    {{ return('') }}
-  {% endif %}
-  {{ return(column.get('name') | string) }}
-{% endmacro %}
-
-{% macro _federation_lookup_override(column, type_overrides, invocation_overrides) %}
-  {% set col_name = dbt_bigquery_federation._federation_column_name(column) %}
-  {% if invocation_overrides is mapping and col_name in invocation_overrides %}
+{% macro _federation_lookup_override(column, type_overrides, invocation_overrides, source_type) %}
+  {% set col_name = column.get('name') | string %}
+  {% if col_name in invocation_overrides %}
     {{ return(invocation_overrides[col_name]) }}
   {% endif %}
-  {% if column is mapping and column.get('strategy') %}
+  {% if column.get('strategy') %}
     {{ return({
       'strategy': column.get('strategy'),
       'remote_type': column.get('remote_type', 'text'),
       'target_type': column.get('target_type', 'STRING')
     }) }}
   {% endif %}
-  {% set data_type = dbt_bigquery_federation._cloud_sql_postgres_normalize_type_name(column.get('data_type')) %}
-  {% if type_overrides is mapping and data_type in type_overrides %}
-    {{ return(type_overrides[data_type]) }}
-  {% endif %}
-  {% if type_overrides is mapping and column.get('data_type') in type_overrides %}
-    {{ return(type_overrides[column.get('data_type')]) }}
+  {% if source_type in type_overrides %}
+    {{ return(type_overrides[source_type]) }}
   {% endif %}
   {{ return(none) }}
+{% endmacro %}
+
+{% macro _federation_validate_remote_type(remote_type) %}
+  {% set matched = modules.re.match('^[a-z_][a-z0-9_ ]*$', remote_type | string | lower | trim) %}
+  {{ return(matched is not none) }}
 {% endmacro %}
 
 {% macro _federation_classify_column(provider, column, policy, type_overrides, invocation_overrides) %}
@@ -74,35 +91,22 @@
   {% if not data_type %}
     {{ return({'ok': false, 'error': 'Pin column ' ~ name ~ ' is missing data_type', 'classified': none}) }}
   {% endif %}
-  {% set override = dbt_bigquery_federation._federation_lookup_override(column, type_overrides, invocation_overrides) %}
+  {% set source_type = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, data_type) %}
+  {% set override = dbt_bigquery_federation._federation_lookup_override(column, type_overrides, invocation_overrides, source_type) %}
   {% if override is mapping %}
     {% set strategy = override.get('strategy') | string | lower %}
     {% if strategy == 'remote_cast' %}
-      {{ return({'ok': true, 'error': none, 'classified': {
-        'name': name,
-        'source_type': dbt_bigquery_federation._cloud_sql_postgres_normalize_type_name(data_type),
-        'raw_data_type': column.get('raw_data_type', data_type),
-        'precision': column.get('precision'),
-        'scale': column.get('scale'),
-        'action': 'remote_cast',
-        'kind': 'override',
-        'target_type': override.get('target_type', 'STRING'),
-        'remote_type': override.get('remote_type', 'text'),
-        'lossiness': 'representation_change'
-      }}) }}
+      {% set remote_type = override.get('remote_type', 'text') %}
+      {% if not dbt_bigquery_federation._federation_validate_remote_type(remote_type) %}
+        {{ return({'ok': false, 'error': 'Column ' ~ name ~ ' override remote_type is not a safe PostgreSQL type name', 'classified': none}) }}
+      {% endif %}
+      {{ return({'ok': true, 'error': none, 'classified': dbt_bigquery_federation._federation_classified_column(
+        column, source_type, 'remote_cast', override.get('target_type', 'STRING'), remote_type, 'representation_change'
+      )}) }}
     {% elif strategy == 'passthrough' %}
-      {{ return({'ok': true, 'error': none, 'classified': {
-        'name': name,
-        'source_type': dbt_bigquery_federation._cloud_sql_postgres_normalize_type_name(data_type),
-        'raw_data_type': column.get('raw_data_type', data_type),
-        'precision': column.get('precision'),
-        'scale': column.get('scale'),
-        'action': 'passthrough',
-        'kind': 'override',
-        'target_type': override.get('target_type', 'STRING'),
-        'remote_type': none,
-        'lossiness': override.get('lossiness', 'exact')
-      }}) }}
+      {{ return({'ok': true, 'error': none, 'classified': dbt_bigquery_federation._federation_classified_column(
+        column, source_type, 'passthrough', override.get('target_type', 'STRING'), none, override.get('lossiness', 'exact')
+      )}) }}
     {% elif strategy == 'fail' %}
       {{ return({'ok': false, 'error': 'Column ' ~ name ~ ' is blocked by an explicit fail override', 'classified': none}) }}
     {% else %}
@@ -112,31 +116,13 @@
 
   {% set entry = dbt_bigquery_federation._federation_provider_type_entry(provider, data_type) %}
   {% if entry.kind == 'native' %}
-    {{ return({'ok': true, 'error': none, 'classified': {
-      'name': name,
-      'source_type': entry.data_type,
-      'raw_data_type': column.get('raw_data_type', data_type),
-      'precision': column.get('precision'),
-      'scale': column.get('scale'),
-      'action': 'passthrough',
-      'kind': 'native',
-      'target_type': entry.target,
-      'remote_type': none,
-      'lossiness': entry.lossiness
-    }}) }}
+    {{ return({'ok': true, 'error': none, 'classified': dbt_bigquery_federation._federation_classified_column(
+      column, entry.data_type, 'passthrough', entry.target, none, entry.lossiness
+    )}) }}
   {% elif entry.kind == 'decimal' %}
-    {{ return({'ok': true, 'error': none, 'classified': {
-      'name': name,
-      'source_type': entry.data_type,
-      'raw_data_type': column.get('raw_data_type', data_type),
-      'precision': column.get('precision'),
-      'scale': column.get('scale'),
-      'action': 'decimal',
-      'kind': 'decimal',
-      'target_type': 'NUMERIC',
-      'remote_type': none,
-      'lossiness': 'exact'
-    }}) }}
+    {{ return({'ok': true, 'error': none, 'classified': dbt_bigquery_federation._federation_classified_column(
+      column, entry.data_type, 'decimal', 'NUMERIC', none, 'exact'
+    )}) }}
   {% elif entry.kind == 'unsupported' %}
     {% if policy == 'strict' %}
       {{ return({
@@ -145,18 +131,9 @@
         'classified': none
       }) }}
     {% endif %}
-    {{ return({'ok': true, 'error': none, 'classified': {
-      'name': name,
-      'source_type': entry.data_type,
-      'raw_data_type': column.get('raw_data_type', data_type),
-      'precision': column.get('precision'),
-      'scale': column.get('scale'),
-      'action': 'remote_cast',
-      'kind': 'unsupported',
-      'target_type': entry.target,
-      'remote_type': entry.remote_type,
-      'lossiness': entry.lossiness
-    }}) }}
+    {{ return({'ok': true, 'error': none, 'classified': dbt_bigquery_federation._federation_classified_column(
+      column, entry.data_type, 'remote_cast', entry.target, entry.remote_type, entry.lossiness
+    )}) }}
   {% endif %}
   {{ return({
     'ok': false,
@@ -166,117 +143,83 @@
 {% endmacro %}
 
 {% macro _federation_fold_decimals(classified_columns, policy) %}
-  {% set ns = namespace(decimals=[], others=[]) %}
+  {% set scan = namespace(max_tier=0, has_decimal=false, remaining_max=0, offenders=[]) %}
   {% for col in classified_columns %}
-    {% if col.kind == 'decimal' %}
-      {% set ns.decimals = ns.decimals + [col] %}
-    {% else %}
-      {% set ns.others = ns.others + [col] %}
+    {% if col.action == 'decimal' %}
+      {% set scan.has_decimal = true %}
+      {% set tier = dbt_bigquery_federation._federation_decimal_tier(col.precision, col.scale) %}
+      {% if tier > scan.max_tier %}
+        {% set scan.max_tier = tier %}
+      {% endif %}
+      {% if tier == 2 %}
+        {% do scan.offenders.append(col.name) %}
+      {% elif tier > scan.remaining_max %}
+        {% set scan.remaining_max = tier %}
+      {% endif %}
     {% endif %}
   {% endfor %}
-  {% if ns.decimals | length == 0 %}
+  {% if not scan.has_decimal %}
     {{ return({'ok': true, 'error': none, 'columns': classified_columns, 'decimal_option': none, 'warnings': []}) }}
   {% endif %}
 
-  {% set fit = namespace(all_numeric=true, all_bignumeric=true) %}
-  {% for col in ns.decimals %}
-    {% if not dbt_bigquery_federation._federation_fits_numeric(col.precision, col.scale) %}
-      {% set fit.all_numeric = false %}
-    {% endif %}
-    {% if not dbt_bigquery_federation._federation_fits_bignumeric(col.precision, col.scale) %}
-      {% set fit.all_bignumeric = false %}
-    {% endif %}
-  {% endfor %}
-
-  {% if fit.all_numeric %}
-    {% set folded = namespace(columns=[]) %}
-    {% for col in ns.decimals %}
-      {% set folded.columns = folded.columns + [dbt_bigquery_federation._federation_copy_column(col, 'passthrough', 'NUMERIC', none, 'exact')] %}
-    {% endfor %}
-    {{ return({'ok': true, 'error': none, 'columns': ns.others + folded.columns, 'decimal_option': none, 'warnings': []}) }}
-  {% endif %}
-
-  {% if fit.all_bignumeric %}
-    {% set folded = namespace(columns=[]) %}
-    {% for col in ns.decimals %}
-      {% set folded.columns = folded.columns + [dbt_bigquery_federation._federation_copy_column(col, 'passthrough', 'BIGNUMERIC', none, 'exact')] %}
-    {% endfor %}
-    {{ return({'ok': true, 'error': none, 'columns': ns.others + folded.columns, 'decimal_option': 'bignumeric', 'warnings': []}) }}
-  {% endif %}
-
-  {% if policy == 'strict' %}
-    {% set offenders = namespace(names=[]) %}
-    {% for col in ns.decimals %}
-      {% if not dbt_bigquery_federation._federation_fits_bignumeric(col.precision, col.scale) %}
-        {% set offenders.names = offenders.names + [col.name] %}
-      {% endif %}
-    {% endfor %}
+  {% if scan.max_tier == 2 and policy == 'strict' %}
     {{ return({
       'ok': false,
-      'error': 'Decimal columns are unbounded or exceed BIGNUMERIC under strict policy: ' ~ (offenders.names | join(', ')) ~ '. Add an override or tighten the pin precision/scale.',
+      'error': 'Decimal columns are unbounded or exceed BIGNUMERIC under strict policy: ' ~ (scan.offenders | join(', ')) ~ '. Add an override or tighten the pin precision/scale.',
       'columns': none,
       'decimal_option': none,
       'warnings': []
     }) }}
   {% endif %}
 
-  {% set mixed = namespace(any_bignumeric_only=false) %}
-  {% for col in ns.decimals %}
-    {% if dbt_bigquery_federation._federation_fits_bignumeric(col.precision, col.scale) and not dbt_bigquery_federation._federation_fits_numeric(col.precision, col.scale) %}
-      {% set mixed.any_bignumeric_only = true %}
+  {% set fold_cfg = namespace(native_target='NUMERIC', decimal_option=none, warnings=[]) %}
+  {% if scan.max_tier == 1 %}
+    {% set fold_cfg.native_target = 'BIGNUMERIC' %}
+    {% set fold_cfg.decimal_option = 'bignumeric' %}
+  {% elif scan.max_tier == 2 %}
+    {% set fold_cfg.warnings = ['One or more decimal columns cannot be proven to fit BIGNUMERIC; those columns are remote-cast to text and pushdown is lost.'] %}
+    {% if scan.remaining_max == 1 %}
+      {% set fold_cfg.native_target = 'BIGNUMERIC' %}
+      {% set fold_cfg.decimal_option = 'bignumeric' %}
     {% endif %}
-  {% endfor %}
-  {% set native_target = 'BIGNUMERIC' if mixed.any_bignumeric_only else 'NUMERIC' %}
+  {% endif %}
+
   {% set folded = namespace(columns=[]) %}
-  {% for col in ns.decimals %}
-    {% if dbt_bigquery_federation._federation_fits_bignumeric(col.precision, col.scale) %}
-      {% set folded.columns = folded.columns + [dbt_bigquery_federation._federation_copy_column(col, 'passthrough', native_target, none, 'exact')] %}
+  {% for col in classified_columns %}
+    {% if col.action != 'decimal' %}
+      {% do folded.columns.append(col) %}
+    {% elif scan.max_tier < 2 or dbt_bigquery_federation._federation_decimal_tier(col.precision, col.scale) < 2 %}
+      {% do folded.columns.append(dbt_bigquery_federation._federation_copy_column(col, 'passthrough', fold_cfg.native_target, none, 'exact')) %}
     {% else %}
-      {% set folded.columns = folded.columns + [dbt_bigquery_federation._federation_copy_column(col, 'remote_cast', 'STRING', 'text', 'representation_change')] %}
+      {% do folded.columns.append(dbt_bigquery_federation._federation_copy_column(col, 'remote_cast', 'STRING', 'text', 'representation_change')) %}
     {% endif %}
   {% endfor %}
   {{ return({
     'ok': true,
     'error': none,
-    'columns': ns.others + folded.columns,
-    'decimal_option': 'bignumeric' if mixed.any_bignumeric_only else none,
-    'warnings': ['One or more decimal columns cannot be proven to fit BIGNUMERIC; those columns are remote-cast to text and pushdown is lost.']
+    'columns': folded.columns,
+    'decimal_option': fold_cfg.decimal_option,
+    'warnings': fold_cfg.warnings
   }) }}
-{% endmacro %}
-
-{% macro _federation_restore_column_order(original_names, folded_columns) %}
-  {% set ordered = namespace(columns=[]) %}
-  {% for name in original_names %}
-    {% for col in folded_columns %}
-      {% if col.name == name %}
-        {% set ordered.columns = ordered.columns + [col] %}
-      {% endif %}
-    {% endfor %}
-  {% endfor %}
-  {{ return(ordered.columns) }}
 {% endmacro %}
 
 {% macro _federation_build_remote_sql(provider, schema, table, columns) %}
   {% set relation = dbt_bigquery_federation._federation_provider_render_remote_relation(provider, schema, table) %}
-  {% set ns = namespace(needs_projection=false, select_list=[]) %}
+  {% set ns = namespace(select_list=[], needs_projection=false) %}
   {% for col in columns %}
+    {% set quoted_name = dbt_bigquery_federation._federation_provider_quote_identifier(provider, col.name) %}
     {% if col.action == 'remote_cast' %}
       {% set ns.needs_projection = true %}
+      {% set remote_type = col.remote_type if col.remote_type else 'text' %}
+      {% set expr = dbt_bigquery_federation._federation_provider_render_remote_cast(provider, quoted_name, remote_type) %}
+      {% do ns.select_list.append(expr ~ ' as ' ~ quoted_name) %}
+    {% else %}
+      {% do ns.select_list.append(quoted_name) %}
     {% endif %}
   {% endfor %}
   {% if not ns.needs_projection %}
     {{ return({'body': 'passthrough', 'pushdown': 'kept', 'remote_sql': 'select * from ' ~ relation}) }}
   {% endif %}
-  {% for col in columns %}
-    {% set quoted_name = dbt_bigquery_federation._federation_quote_identifier(provider, col.name) %}
-    {% if col.action == 'remote_cast' %}
-      {% set remote_type = col.remote_type if col.remote_type else 'text' %}
-      {% set expr = dbt_bigquery_federation._federation_provider_render_remote_cast(provider, quoted_name, remote_type) %}
-      {% set ns.select_list = ns.select_list + [expr ~ ' as ' ~ quoted_name] %}
-    {% else %}
-      {% set ns.select_list = ns.select_list + [quoted_name] %}
-    {% endif %}
-  {% endfor %}
   {{ return({
     'body': 'projection',
     'pushdown': 'lost',
@@ -284,58 +227,45 @@
   }) }}
 {% endmacro %}
 
-{% macro _federation_try_plan(connection, table, schema=None, type_policy=None, overrides=None, columns=None) %}
-  {% if columns is none %}
-    {% set loaded = dbt_bigquery_federation._federation_try_load_pin(connection, table, schema) %}
-    {% if not loaded.ok %}
-      {{ return({'ok': false, 'error': loaded.error, 'plan': none}) }}
-    {% endif %}
-    {% set pin_columns = loaded.pin.columns %}
-    {% set conn = loaded.connection %}
-    {% set relation_schema = loaded.pin.schema %}
-    {% set relation_table = loaded.pin.table %}
-  {% else %}
-    {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection(connection) %}
-    {% if not resolved.ok %}
-      {{ return({'ok': false, 'error': resolved.error, 'plan': none}) }}
-    {% endif %}
-    {% set conn = resolved.connection %}
-    {% set relation_schema = schema if schema is not none else conn.default_schema %}
-    {% if relation_schema is none %}
-      {{ return({'ok': false, 'error': 'schema is required when passing explicit columns', 'plan': none}) }}
-    {% endif %}
-    {% set pin_columns = columns %}
-    {% set relation_table = table %}
+{% macro _federation_try_plan(connection, table, schema=None, type_policy=None, overrides=None) %}
+  {% set loaded = dbt_bigquery_federation._federation_try_load_pin(connection, table, schema) %}
+  {% if not loaded.ok %}
+    {{ return({'ok': false, 'error': loaded.error, 'plan': none}) }}
   {% endif %}
+  {% set pin_columns = loaded.pin.columns %}
+  {% set conn = loaded.connection %}
+  {% set relation_schema = loaded.pin.schema %}
+  {% set relation_table = loaded.pin.table %}
+  {% set relation = conn.provider ~ ' ' ~ relation_schema ~ '.' ~ relation_table %}
 
   {% set policy_result = dbt_bigquery_federation._federation_resolve_policy(conn, type_policy) %}
   {% if not policy_result.ok %}
-    {{ return({'ok': false, 'error': policy_result.error, 'plan': none}) }}
+    {{ return({'ok': false, 'error': relation ~ ': ' ~ policy_result.error, 'plan': none}) }}
   {% endif %}
   {% set policy = policy_result.policy %}
   {% set type_overrides = dbt_bigquery_federation._federation_package_type_overrides() %}
-  {% set invocation_overrides = overrides if overrides is mapping else {} %}
+  {% if overrides is none %}
+    {% set invocation_overrides = {} %}
+  {% elif overrides is mapping %}
+    {% set invocation_overrides = overrides %}
+  {% else %}
+    {{ return({'ok': false, 'error': relation ~ ': overrides must be a mapping', 'plan': none}) }}
+  {% endif %}
 
   {% set classified_ns = namespace(columns=[]) %}
   {% for column in pin_columns %}
     {% set item = dbt_bigquery_federation._federation_classify_column(conn.provider, column, policy, type_overrides, invocation_overrides) %}
     {% if not item.ok %}
-      {{ return({'ok': false, 'error': item.error, 'plan': none}) }}
+      {{ return({'ok': false, 'error': relation ~ ': ' ~ item.error, 'plan': none}) }}
     {% endif %}
-    {% set classified_ns.columns = classified_ns.columns + [item.classified] %}
+    {% do classified_ns.columns.append(item.classified) %}
   {% endfor %}
 
   {% set folded = dbt_bigquery_federation._federation_fold_decimals(classified_ns.columns, policy) %}
   {% if not folded.ok %}
-    {{ return({'ok': false, 'error': folded.error, 'plan': none}) }}
+    {{ return({'ok': false, 'error': relation ~ ': ' ~ folded.error, 'plan': none}) }}
   {% endif %}
-
-  {% set names = namespace(values=[]) %}
-  {% for col in classified_ns.columns %}
-    {% set names.values = names.values + [col.name] %}
-  {% endfor %}
-  {% set ordered_columns = dbt_bigquery_federation._federation_restore_column_order(names.values, folded.columns) %}
-  {% set sql_plan = dbt_bigquery_federation._federation_build_remote_sql(conn.provider, relation_schema, relation_table, ordered_columns) %}
+  {% set sql_plan = dbt_bigquery_federation._federation_build_remote_sql(conn.provider, relation_schema, relation_table, folded.columns) %}
 
   {{ return({
     'ok': true,
@@ -352,7 +282,7 @@
       'pushdown': sql_plan.pushdown,
       'remote_sql': sql_plan.remote_sql,
       'warnings': folded.warnings,
-      'columns': ordered_columns
+      'columns': folded.columns
     }
   }) }}
 {% endmacro %}
