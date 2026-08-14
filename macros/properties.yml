@@ -83,6 +83,8 @@ macros:
     description: >
       Discovers the live remote schema and prints a vars-compatible tables/columns
       YAML fragment suitable for review and committing to a dbt project.
+      Emits numeric precision/scale and character_maximum_length only when those
+      typmods apply; integer and float information_schema bit-widths are omitted.
     arguments:
       - name: connection
         type: string
@@ -97,7 +99,10 @@ macros:
   - name: federation_schema_diff
     description: >
       Compares a configured pin with live remote metadata and logs added,
-      removed, and type/precision changes.
+      removed, and type/precision/length changes. Integer and float
+      information_schema bit-widths are ignored; numeric typmods and
+      character lengths are compared. Pin data_type aliases are normalized
+      with the connection provider.
     arguments:
       - name: connection
         type: string
@@ -112,7 +117,8 @@ macros:
   - name: federation_validate
     description: >
       Compares a configured pin with live metadata and optionally fails when
-      schema drift is detected.
+      schema drift is detected. Drift uses the same comparable type signature
+      as federation_schema_diff.
     arguments:
       - name: connection
         type: string

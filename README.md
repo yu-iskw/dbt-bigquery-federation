@@ -196,7 +196,7 @@ dbt run-operation federation_validate \
   --args '{connection: application_pg, schema: public, table: orders}'
 ```
 
-By default, validation raises a compiler error when the live source differs from the configured pin.
+By default, validation raises a compiler error when the live source differs from the configured pin. Comparison ignores PostgreSQL `information_schema` bit-widths on integers and floats (`bigint` is not `bigint(64,0)`), normalizes pin type aliases such as `timestamp` and `varchar`, and treats `numeric` precision/scale plus character `character_maximum_length` as part of the type.
 
 ## Raw escape hatch
 

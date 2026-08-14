@@ -74,6 +74,14 @@
   {{ return(data_type) }}
 {% endmacro %}
 
+{% macro _federation_type_carries_numeric_typmod(data_type) %}
+  {{ return((data_type | string | lower | trim) in ['numeric', 'decimal']) }}
+{% endmacro %}
+
+{% macro _federation_type_carries_length_typmod(data_type) %}
+  {{ return((data_type | string | lower | trim) in ['character varying', 'character', 'varchar', 'char', 'bpchar', 'bit', 'bit varying']) }}
+{% endmacro %}
+
 {% macro _federation_classify_column(provider, column, policy, type_overrides, invocation_overrides) %}
   {% if column is not mapping %}
     {{ return({'ok': false, 'error': 'Each column must be a mapping', 'classified': none}) }}
