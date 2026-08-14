@@ -115,6 +115,8 @@ jobs:
           DBT_POSTGRES_PASSWORD: postgres
           DBT_POSTGRES_DATABASE: dbt_package_template
           DBT_POSTGRES_SCHEMA: dbt_package_template
+          # Fusion preview treats postgres as experimental (dbt1005).
+          DBT_ALLOW_EXPERIMENTAL_ADAPTERS: "true"
         run: |
           mkdir -p target
           uv run nox -f noxfile_fusion.py -s "fusion_unit_tests-${{ matrix.python-version }}"

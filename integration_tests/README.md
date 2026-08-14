@@ -55,6 +55,6 @@ The integration harness runs `dbt build --exclude federation` then `dbt compile 
 
 ## Fusion lane
 
-Fusion sessions live in [`noxfile_fusion.py`](noxfile_fusion.py) (not the default `noxfile.py` entrypoint). Run them with `uv run nox -f noxfile_fusion.py` (the Makefile fusion targets pass `-f` for you). Fusion CI is **non-blocking**.
+Fusion sessions live in [`noxfile_fusion.py`](noxfile_fusion.py) (not the default `noxfile.py` entrypoint). Run them with `uv run nox -f noxfile_fusion.py` (the Makefile fusion targets pass `-f` for you). Fusion CI is **non-blocking**. Fusion preview treats postgres as experimental; the harness sets `DBT_ALLOW_EXPERIMENTAL_ADAPTERS=true` so the Jinja engine can load.
 
 Set `DBT_FUSION_VERSION` if you need to pin a specific Fusion build instead of the latest available installer target.

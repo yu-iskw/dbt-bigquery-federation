@@ -83,7 +83,7 @@ make run-fusion-tests
 ```
 
 - **dbt Core lane (required):** Postgres Jinja engine, `dbt-core-1-10` and `dbt-core-1-11`.
-- **Fusion lane (preview, non-blocking in CI):** same Postgres contract via [`integration_tests/noxfile_fusion.py`](integration_tests/noxfile_fusion.py). Set **`DBT_FUSION_VERSION`** to pin a build.
+- **Fusion lane (preview, non-blocking in CI):** same Postgres contract via [`integration_tests/noxfile_fusion.py`](integration_tests/noxfile_fusion.py). The harness sets **`DBT_ALLOW_EXPERIMENTAL_ADAPTERS=true`** because Fusion still treats postgres as experimental. Set **`DBT_FUSION_VERSION`** to pin a build.
 
 `make run-fusion-tests` runs **both** Fusion unit and Fusion integration targets.
 

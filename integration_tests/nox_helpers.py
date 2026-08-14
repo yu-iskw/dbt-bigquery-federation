@@ -43,6 +43,9 @@ def build_env(session, uv_group, adapter, dbt_cmd):
     env = dict(os.environ)
     env.update(session.env)
     env["DBT_CMD"] = dbt_cmd
+    if uv_group == FUSION_GROUP:
+        # Fusion preview treats postgres as experimental (dbt1005) unless opted in.
+        env["DBT_ALLOW_EXPERIMENTAL_ADAPTERS"] = "true"
     return env
 
 
