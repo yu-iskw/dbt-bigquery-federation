@@ -8,6 +8,10 @@
   {% do test_postgres_metadata_remote_sql() %}
   {% do test_alloydb_metadata_uses_postgres_profile() %}
   {% do test_metadata_query_wraps_external_query() %}
+  {% do test_metadata_mode_auto_prefers_pin() %}
+  {% do test_metadata_mode_live_is_explicit() %}
+  {% do test_metadata_mode_auto_uses_live_without_pin() %}
+  {% do test_live_parse_stub_is_passthrough() %}
   {% do test_schema_diff_detects_add_remove_change() %}
   {% do test_schema_diff_no_changes() %}
   {% do test_plan_all_native_passthrough() %}
