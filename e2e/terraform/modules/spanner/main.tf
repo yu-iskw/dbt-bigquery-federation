@@ -29,21 +29,47 @@ resource "google_spanner_database" "this" {
   deletion_protection = false
 }
 
-resource "google_bigquery_connection" "spanner" {
+# The data connection deliberately enables parallel reads. It represents the
+# connection users may choose for root-partitionable analytical table scans.
+resource "google_bigquery_connection" "spanner_data" {
   project       = var.project_id
   location      = var.region
   connection_id = "${replace(var.name_prefix, "-", "_")}_spanner"
-  friendly_name = "dbt-bigquery-federation local E2E Spanner"
+  friendly_name = "dbt-bigquery-federation local E2E Spanner data"
 
   cloud_spanner {
-    database = google_spanner_database.this.id
+    database        = google_spanner_database.this.id
+    use_parallelism = true
   }
 }
 
-resource "google_bigquery_connection_iam_member" "runner" {
+# INFORMATION_SCHEMA queries are not guaranteed to be root partitionable.
+# Keep metadata discovery on a non-parallel connection so schema introspection
+# does not fail with "Query is not root partitionable".
+resource "google_bigquery_connection" "spanner_metadata" {
   project       = var.project_id
-  location      = google_bigquery_connection.spanner.location
-  connection_id = google_bigquery_connection.spanner.connection_id
+  location      = var.region
+  connection_id = "${replace(var.name_prefix, "-", "_")}_spanner_metadata"
+  friendly_name = "dbt-bigquery-federation local E2E Spanner metadata"
+
+  cloud_spanner {
+    database        = google_spanner_database.this.id
+    use_parallelism = false
+  }
+}
+
+resource "google_bigquery_connection_iam_member" "runner_data" {
+  project       = var.project_id
+  location      = google_bigquery_connection.spanner_data.location
+  connection_id = google_bigquery_connection.spanner_data.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = var.runner_principal
+}
+
+resource "google_bigquery_connection_iam_member" "runner_metadata" {
+  project       = var.project_id
+  location      = google_bigquery_connection.spanner_metadata.location
+  connection_id = google_bigquery_connection.spanner_metadata.connection_id
   role          = "roles/bigquery.connectionUser"
   member        = var.runner_principal
 }
