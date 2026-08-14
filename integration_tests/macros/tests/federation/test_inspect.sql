@@ -2,6 +2,7 @@
   {% set kept = dbt_bigquery_federation._federation_inspect_result('application_pg', 'public', 'orders') %}
   {% do dbt_unittest.assert_equals(kept.ok, true) %}
   {% do dbt_unittest.assert_equals(kept.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals('metadata_source=pinned' in kept.report, true) %}
   {% do dbt_unittest.assert_equals('pushdown=kept' in kept.report, true) %}
   {% do dbt_unittest.assert_equals(kept.plan.columns[0].action, 'passthrough') %}
   {% do dbt_unittest.assert_equals(kept.plan.columns[0].lossiness, 'exact') %}
@@ -11,6 +12,7 @@
   {% do dbt_unittest.assert_equals(lost.plan.policy, 'safe') %}
   {% do dbt_unittest.assert_equals(lost.plan.body, 'projection') %}
   {% do dbt_unittest.assert_equals(lost.plan.pushdown, 'lost') %}
+  {% do dbt_unittest.assert_equals('metadata_source=pinned' in lost.report, true) %}
   {% do dbt_unittest.assert_equals('policy=safe' in lost.report, true) %}
   {% do dbt_unittest.assert_equals('pushdown=lost' in lost.report, true) %}
   {% do dbt_unittest.assert_equals('user_uuid' in lost.report, true) %}
@@ -27,12 +29,9 @@
   {% do dbt_unittest.assert_equals(found.uuid.lossiness, 'representation_change') %}
   {% do dbt_unittest.assert_equals(found.payload.action, 'remote_cast') %}
   {% do dbt_unittest.assert_equals(found.payload.source_type, 'jsonb') %}
-  {% do dbt_unittest.assert_equals('id\tbigint\tINT64\tpassthrough\texact\tkept' in lost.report, true) %}
-  {% do dbt_unittest.assert_equals('user_uuid\tuuid\tSTRING\tremote_cast\trepresentation_change\tlost' in lost.report, true) %}
-  {% do dbt_unittest.assert_equals('payload\tjsonb\tSTRING\tremote_cast\trepresentation_change\tlost' in lost.report, true) %}
-
-  {% set live = dbt_bigquery_federation._federation_inspect_result('application_pg', 'public', 'orders', true) %}
-  {% do dbt_unittest.assert_equals(live.ok, false) %}
+  {% do dbt_unittest.assert_equals('id\tbigint\tINT64\tpassthrough\texact\tno' in lost.report, true) %}
+  {% do dbt_unittest.assert_equals('user_uuid\tuuid\tSTRING\tremote_cast\trepresentation_change\tyes' in lost.report, true) %}
+  {% do dbt_unittest.assert_equals('payload\tjsonb\tSTRING\tremote_cast\trepresentation_change\tyes' in lost.report, true) %}
 {% endmacro %}
 
 {% macro test_federation_inspect_strict_requires_overrides() %}

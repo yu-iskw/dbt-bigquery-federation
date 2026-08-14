@@ -1,99 +1,8 @@
 # dbt_bigquery_federation
 
-**`dbt_bigquery_federation`** is a dbt package that turns BigQuery `EXTERNAL_QUERY` into a pinned, schema-aware table-expression primitive.
+`dbt_bigquery_federation` makes BigQuery `EXTERNAL_QUERY` practical from dbt by discovering remote schemas, planning type conversions, and rendering table expressions that compose with normal dbt models.
 
-Add it as a dependency, run `dbt deps`, and call macros from the `dbt_bigquery_federation` namespace.
-
-If you maintain this repository, see [CONTRIBUTING.md](./CONTRIBUTING.md) for tests, linting, and development layout. Architecture: [docs/rfcs/0001-bigquery-federation-architecture.md](./docs/rfcs/0001-bigquery-federation-architecture.md).
-
-## Installation
-
-In your **root** dbt project, add a [package](https://docs.getdbt.com/docs/build/packages) entry:
-
-```yaml
-packages:
-  - git: "https://github.com/YOUR_ORG/YOUR_REPO.git"
-    revision: main # or a tag / SHA
-```
-
-Then run:
-
-```bash
-dbt deps
-```
-
-## Requirements
-
-- **dbt Core** **1.10 or newer, below 3.0** (see `require-dbt-version` in [`dbt_project.yml`](./dbt_project.yml)).
-- A **BigQuery** target in the consuming project. This package emits BigQuery `EXTERNAL_QUERY` SQL.
-- A BigQuery connection resource to Cloud SQL PostgreSQL. The package does not create connections, IAM, or database users.
-
-Supported CI in this repository uses **Postgres as a Jinja test engine** (no GCP). Fusion BigQuery is Preview and is **not** advertised as supported.
-
-## What is in this package
-
-- **`federated_relation`** — plans types from Git-reviewed pins and renders `EXTERNAL_QUERY`.
-- **`external_query`** — trusted raw remote SQL hatch (no planner).
-- **`federation_inspect`** — `run-operation` that prints the conversion plan for a pin.
-
-Pins live in `vars`. Compilation does **not** call `run_query`. The same Git SHA plus the same vars compiles the same SQL.
-
-## Configuration
-
-```yaml
-vars:
-  dbt_bigquery_federation:
-    connections:
-      application_pg:
-        connection_id: "{{ env_var('BQ_FEDERATION_CONNECTION_ID') }}"
-        provider: cloud_sql_postgres
-        defaults:
-          schema: public
-        types:
-          policy: safe   # safe | strict
-    tables:
-      application_pg.public.orders:
-        columns:
-          - name: id
-            data_type: bigint
-          - name: user_uuid
-            data_type: uuid
-          - name: amount
-            data_type: numeric
-            precision: 12
-            scale: 2
-    type_overrides:
-      uuid:
-        strategy: remote_cast
-        remote_type: text
-        target_type: STRING
-```
-
-`connection_id` must be fully qualified:
-
-```text
-projects/PROJECT_ID/locations/LOCATION/connections/CONNECTION_ID
-```
-
-Different dbt targets may use different environment variables or target-scoped vars for `connection_id`. Do not treat one production connection resource as the only configuration.
-
-v0.1 provider: `cloud_sql_postgres` only.
-
-Override precedence (later entries win):
-
-1. package defaults
-2. connection `types.policy`
-3. `type_overrides` by source type
-4. pin column `strategy` / `remote_type` / `target_type`
-5. invocation `type_policy` / `overrides`
-
-## Macros
-
-### `federated_relation`
-
-Returns a **SQL table expression**. Plan types from the pin; preserve remote `SELECT * FROM T` when every column is natively safe.
-
-Remote schema and table identifiers are **always** PostgreSQL-quoted (double quotes; internal `"` doubled). There is no unquoted-if-safe path.
+The primary UX is intentionally small:
 
 ```sql
 select *
@@ -104,34 +13,177 @@ from {{ dbt_bigquery_federation.federated_relation(
 ) }}
 ```
 
-To return fewer columns **without** disabling BigQuery federated pushdown, project on the BigQuery side:
+## Current provider scope
+
+- `cloud_sql_postgres`
+- `alloydb_postgres`
+
+Both providers share the PostgreSQL metadata/dialect/type profile while remaining distinct provider identities. Spanner support is planned separately because its type semantics differ even for the PostgreSQL dialect.
+
+## Configuration
+
+```yaml
+vars:
+  dbt_bigquery_federation:
+    metadata:
+      mode: auto # auto | live | pinned
+
+    connections:
+      application_pg:
+        connection_id: "{{ env_var('BQ_APP_PG_CONNECTION_ID') }}"
+        provider: cloud_sql_postgres
+        defaults:
+          schema: public
+        types:
+          policy: safe
+
+      analytics_alloydb:
+        connection_id: "{{ env_var('BQ_ALLOYDB_CONNECTION_ID') }}"
+        provider: alloydb_postgres
+        defaults:
+          schema: public
+```
+
+`connection_id` must be fully qualified:
+
+```text
+projects/PROJECT_ID/locations/LOCATION/connections/CONNECTION_ID
+```
+
+## Metadata modes
+
+### `auto` — recommended
+
+Use a configured pin when one exists. Otherwise discover the current remote schema through `EXTERNAL_QUERY` and `information_schema.columns` during connected compilation.
 
 ```sql
-select id, amount
-from {{ dbt_bigquery_federation.federated_relation(
+{{ dbt_bigquery_federation.federated_relation(
     connection='application_pg',
-    schema='public',
-    table='orders'
+    table='orders',
+    metadata_mode='auto'
 ) }}
 ```
 
-SQL pushdowns apply only to federated queries of the form `SELECT * FROM T`. When that shape survives, BigQuery may prune columns and push filters; filter literals are limited to the Google-listed types, not `NUMERIC` / `BIGNUMERIC` / `TIME` / `BYTES`. The package emits a remote column list only when a conversion (for example `uuid` → `text`) requires it.
+### `live`
 
-Under **`safe`** (default), known-unsupported PostgreSQL types such as `uuid`, `jsonb`, `pg_lsn`, `tsquery`, `tsvector`, and `txid_snapshot` are remote-cast to `text`. Unknown types, including arrays, fail. **`strict`** fails unsupported types until you pass an override. Compile warns when a safe decimal fold remote-casts oversized or unbounded decimals and loses pushdown.
+Always discover the current source schema and re-plan types.
 
-Type mapping notes:
+```sql
+{{ dbt_bigquery_federation.federated_relation(
+    connection='application_pg',
+    table='orders',
+    metadata_mode='live'
+) }}
+```
 
-- `bit`, `bit varying`, and alias `varbit` map natively to BigQuery `BYTES`.
-- `json` maps natively to BigQuery `STRING` (`jsonb` is unsupported).
-- Arrays are unknown (not in Google's Cloud SQL `EXTERNAL_QUERY` map).
+During parse-only evaluation (`execute=false`), the macro emits a passthrough `SELECT *` stub and performs no metadata I/O. Connected compilation replaces it with the discovered/type-planned query.
 
-Decimal options: omitted `EXTERNAL_QUERY` options JSON means Google's default `NUMERIC`. The package never emits `"numeric"`. It emits `"bignumeric"` when **any** remaining native decimal needs `BIGNUMERIC`, including a mix with NUMERIC-fit siblings after unbounded offenders are remote-cast. Widening NUMERIC-range values to `BIGNUMERIC` stays exact.
+### `pinned`
 
-Incremental models should set `on_schema_change='fail'` unless you explicitly choose another strategy. This package does not set it for you.
+Use Git-reviewed metadata under `vars.dbt_bigquery_federation.tables` and perform no live metadata lookup.
 
-### `external_query`
+```yaml
+vars:
+  dbt_bigquery_federation:
+    tables:
+      application_pg.public.orders:
+        columns:
+          - name: id
+            data_type: bigint
+          - name: amount
+            data_type: numeric
+            precision: 12
+            scale: 2
+```
 
-Trusted raw remote SQL. The dbt identity executes this string on the remote database.
+This mode is useful for deterministic or regulated production workflows.
+
+## Live schema discovery
+
+Cloud SQL PostgreSQL and AlloyDB PostgreSQL use the same metadata profile. The package executes a remote query equivalent to:
+
+```sql
+select
+  column_name,
+  data_type,
+  udt_name,
+  ordinal_position,
+  is_nullable,
+  numeric_precision,
+  numeric_scale,
+  character_maximum_length
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'orders'
+order by ordinal_position
+```
+
+through the configured BigQuery connection and normalizes the result before type planning.
+
+You can call discovery directly:
+
+```bash
+dbt run-operation get_remote_columns \
+  --args '{connection: application_pg, schema: public, table: orders}'
+```
+
+## Type planning
+
+The planner prefers native BigQuery federation mappings. Under `safe`, known unsupported PostgreSQL types such as `uuid` and `jsonb` are remote-cast to `text`; unknown types fail rather than being guessed. Under `strict`, unsupported types also fail unless explicitly overridden.
+
+```yaml
+vars:
+  dbt_bigquery_federation:
+    type_overrides:
+      uuid:
+        strategy: remote_cast
+        remote_type: text
+        target_type: STRING
+```
+
+The planner also folds relation-level PostgreSQL `numeric` requirements so that `EXTERNAL_QUERY` can use the query-wide `default_type_for_decimal_columns` option where appropriate.
+
+## Inspection and governance workflow
+
+### Inspect the live source
+
+```bash
+dbt run-operation federation_inspect \
+  --args '{connection: application_pg, schema: public, table: orders, live: true}'
+```
+
+The report includes provider, metadata source, policy, plan shape, decimal option, pushdown status, and per-column conversion actions.
+
+### Generate a pin
+
+```bash
+dbt run-operation federation_generate_pin \
+  --args '{connection: application_pg, schema: public, table: orders}'
+```
+
+This prints a `tables:` YAML fragment generated from live metadata. Users can review and commit it instead of manually copying large schemas.
+
+### Compare a pin with the live source
+
+```bash
+dbt run-operation federation_schema_diff \
+  --args '{connection: application_pg, schema: public, table: orders}'
+```
+
+The operation reports added, removed, and changed columns.
+
+### Validate schema drift in CI
+
+```bash
+dbt run-operation federation_validate \
+  --args '{connection: application_pg, schema: public, table: orders}'
+```
+
+By default, validation raises a compiler error when the live source differs from the configured pin.
+
+## Raw escape hatch
+
+`external_query` bypasses metadata discovery, type planning, pin validation, and identifier construction. Treat its SQL argument as trusted remote SQL.
 
 ```sql
 select *
@@ -141,27 +193,30 @@ from {{ dbt_bigquery_federation.external_query(
 ) }}
 ```
 
-### `federation_inspect`
+## dbt materializations
 
-```bash
-dbt run-operation federation_inspect --args '{connection: application_pg, schema: public, table: orders}'
+Federation remains a source-access concern. Use normal dbt persistence:
+
+```sql
+{{ config(materialized='view') }}
+
+select *
+from {{ dbt_bigquery_federation.federated_relation(
+    connection='application_pg',
+    table='orders'
+) }}
 ```
 
-Prints provider, policy, body class, decimal option, and per-column action/lossiness/`pushdown=kept|lost`. `live=true` is rejected in v0.1.
-
-Optional `type_policy` and `overrides` follow `live` so inspect can mirror a `federated_relation` invocation. Positional `true` still means `live`.
-
-```bash
-dbt run-operation federation_inspect --args '{connection: application_pg, schema: public, table: orders, type_policy: strict}'
-```
+The same table expression can be used with `table`, `incremental`, or `ephemeral` models when the resulting SQL is valid. The package does not implement a custom materialization and does not set `on_schema_change` for incremental models.
 
 ## Operational notes
 
-- **Locations.** The BigQuery query processing location should match the location in the connection resource ID. v0.1 does not fail compile on a mismatch; align locations in GCP.
-- **Quotas.** A federated query may use at most 10 unique connections. Cross-region federated queries consume a bytes quota. `maximum bytes billed` is not supported for federated queries. Isolate Cloud SQL from this workload with a read replica.
-- **Credentials.** The package stores connection IDs only and cannot enforce a read-only Cloud SQL user.
-- **Compiled artifacts.** Compiled SQL includes connection resource IDs and remote relation names. Treat `target/`, logs, and CI artifacts accordingly.
-- **Precedence.** Policy and conversion overrides follow the ladder in [Configuration](#configuration): package defaults, then connection `types.policy`, then `type_overrides`, then pin column fields, then invocation `type_policy` / `overrides`.
-- A Cloud SQL table is not a BigQuery `source()`. Wrap `federated_relation` in a staging model and `ref()` that model in the rest of the DAG.
+- BigQuery query processing location must be compatible with the connection location.
+- Federation executes workload against the operational database; use read replicas/read pools where appropriate.
+- Compiled dbt artifacts contain connection resource identifiers and remote relation names.
+- Live discovery intentionally performs metadata I/O during connected compilation. Use `pinned` mode when compile-time external access is undesirable.
+- The package manages neither BigQuery connection resources nor source credentials/IAM.
 
-For **overriding** dispatched macros and how **dbt docs** surfaces macro metadata, see [CONTRIBUTING.md — Downstream projects: overrides and dbt docs](./CONTRIBUTING.md#downstream-projects-overrides-and-dbt-docs).
+## Development
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for local tests and repository conventions. The architecture and roadmap are defined in [RFC-0001](./docs/rfcs/0001-bigquery-federation-architecture.md).

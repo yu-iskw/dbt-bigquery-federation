@@ -1,8 +1,19 @@
 {% macro test_macros() %}
   {% do test_connection_id_validation() %}
+  {% do test_provider_descriptors() %}
+  {% do test_alloydb_connection_resolution() %}
   {% do test_quote_safe_and_mixed_case_identifiers() %}
   {% do test_quote_literal_doubles_single_quotes() %}
   {% do test_external_query_renders_without_planning() %}
+  {% do test_postgres_metadata_remote_sql() %}
+  {% do test_alloydb_metadata_uses_postgres_profile() %}
+  {% do test_metadata_external_query_wrapper() %}
+  {% do test_metadata_mode_auto_prefers_pin() %}
+  {% do test_metadata_mode_live_is_explicit() %}
+  {% do test_metadata_mode_auto_uses_live_without_pin() %}
+  {% do test_live_parse_stub_is_passthrough() %}
+  {% do test_schema_diff_detects_add_remove_change() %}
+  {% do test_schema_diff_no_changes() %}
   {% do test_plan_all_native_passthrough() %}
   {% do test_plan_uuid_jsonb_safe_projection() %}
   {% do test_plan_uuid_strict_errors() %}
@@ -25,6 +36,14 @@
   {% do test_plan_type_overrides_uuid_uppercase_under_strict() %}
   {% do test_plan_numeric_typmod_errors_with_precision_scale_hint() %}
   {% do test_plan_unsafe_remote_type_errors() %}
+  {% do test_alloydb_postgres_plan_uses_shared_profile() %}
+  {% do test_alloydb_postgres_router_matches_postgres_dialect() %}
+  {% do test_alloydb_postgres_live_plan_conformance() %}
+  {% do test_spanner_google_provider_descriptor() %}
+  {% do test_spanner_google_metadata_query() %}
+  {% do test_spanner_google_type_mapping() %}
+  {% do test_spanner_google_sql_rendering() %}
+  {% do test_spanner_google_live_plan_native_types() %}
   {% do test_federated_relation_renders_passthrough() %}
   {% do test_federation_inspect_reports_pushdown() %}
   {% do test_federation_inspect_strict_requires_overrides() %}

@@ -10,6 +10,19 @@ default:
       dbname: "{{ env_var('DBT_POSTGRES_DATABASE', 'dbt_package_template') }}"
       schema: "{{ env_var('DBT_POSTGRES_SCHEMA', 'dbt_package_template') }}"
       threads: "{{ env_var('DBT_THREADS', '4') | as_number }}"
+    bigquery:
+      type: bigquery
+      # dbt-bigquery exposes api_endpoint as a first-class credential field. The
+      # emulator ignores bearer-token authentication, so oauth-secrets with a
+      # fixed dummy token avoids ADC while keeping dbt-bigquery's normal client
+      # construction path (no monkey-patching of the adapter/client is needed).
+      method: oauth-secrets
+      token: "{{ env_var('DBT_BIGQUERY_TOKEN', 'bigquery-emulator') }}"
+      project: "{{ env_var('DBT_BIGQUERY_PROJECT', 'dbt-bigquery-federation-ci') }}"
+      dataset: "{{ env_var('DBT_BIGQUERY_DATASET', 'dbt_bigquery_federation_ci') }}"
+      location: "{{ env_var('DBT_BIGQUERY_LOCATION', 'US') }}"
+      api_endpoint: "{{ env_var('DBT_BIGQUERY_API_ENDPOINT', 'http://127.0.0.1:9050') }}"
+      threads: "{{ env_var('DBT_THREADS', '4') | as_number }}"
     duckdb:
       type: duckdb
       # Use :memory: plus ATTACH so dbt's database name matches a real catalog. A file path

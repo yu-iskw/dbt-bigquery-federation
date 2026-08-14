@@ -13,14 +13,12 @@
 
 {% macro _federation_inspect_result(connection, schema, table, live=false, type_policy=None, overrides=None) %}
   {% if live %}
-    {{ return({
-      'ok': false,
-      'error': 'live metadata is not implemented in v0.1; federation_inspect plans from pins only',
-      'report': none,
-      'plan': none
-    }) }}
+    {% set planned = dbt_bigquery_federation._federation_try_plan_live(connection, table, schema, type_policy, overrides) %}
+    {% set metadata_source = 'live' %}
+  {% else %}
+    {% set planned = dbt_bigquery_federation._federation_try_plan(connection, table, schema, type_policy, overrides) %}
+    {% set metadata_source = 'pinned' %}
   {% endif %}
-  {% set planned = dbt_bigquery_federation._federation_try_plan(connection, table, schema, type_policy, overrides) %}
   {% if not planned.ok %}
     {{ return({'ok': false, 'error': planned.error, 'report': none, 'plan': none}) }}
   {% endif %}
@@ -30,17 +28,18 @@
     'provider=' ~ plan.provider,
     'connection=' ~ plan.connection,
     'relation=' ~ plan.schema ~ '.' ~ plan.table,
+    'metadata_source=' ~ metadata_source,
     'policy=' ~ plan.policy,
     'body=' ~ plan.body,
     'decimal_option=' ~ decimal_label,
     'pushdown=' ~ plan.pushdown,
     '',
-    'COLUMN\tSOURCE TYPE\tTARGET\tACTION\tLOSSINESS\tPUSHDOWN'
+    'COLUMN\tSOURCE TYPE\tTARGET\tACTION\tLOSSINESS\tREMOTE EXPRESSION'
   ]) %}
   {% for col in plan.columns %}
-    {% set col_pushdown = 'lost' if col.action == 'remote_cast' else 'kept' %}
+    {% set remote_expr = 'yes' if col.action == 'remote_cast' else 'no' %}
     {% do lines.rows.append(
-      col.name ~ '\t' ~ col.source_type ~ '\t' ~ col.target_type ~ '\t' ~ col.action ~ '\t' ~ col.lossiness ~ '\t' ~ col_pushdown
+      col.name ~ '\t' ~ col.source_type ~ '\t' ~ col.target_type ~ '\t' ~ col.action ~ '\t' ~ col.lossiness ~ '\t' ~ remote_expr
     ) %}
   {% endfor %}
   {{ return({'ok': true, 'error': none, 'plan': plan, 'report': lines.rows | join('\n')}) }}
