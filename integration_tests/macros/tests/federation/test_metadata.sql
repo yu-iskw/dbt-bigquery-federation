@@ -27,3 +27,12 @@
   {% do dbt_unittest.assert_equals('EXTERNAL_QUERY' in sql, true) %}
   {% do dbt_unittest.assert_equals('information_schema.columns' in sql, true) %}
 {% endmacro %}
+
+{% macro test_spanner_metadata_uses_dedicated_connection() %}
+  {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection('spanner_app') %}
+  {% do dbt_unittest.assert_equals(resolved.ok, true) %}
+  {% set sql = dbt_bigquery_federation._federation_metadata_query_sql(resolved.connection, '', 'Orders') %}
+  {% do dbt_unittest.assert_equals('projects/example/locations/us/connections/spanner-metadata' in sql, true) %}
+  {% do dbt_unittest.assert_equals('projects/example/locations/us/connections/spanner-data' in sql, false) %}
+  {% do dbt_unittest.assert_equals('information_schema.columns' in sql, true) %}
+{% endmacro %}
