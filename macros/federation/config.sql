@@ -73,15 +73,17 @@
   }) }}
 {% endmacro %}
 
-{% macro _federation_package_type_overrides(provider) %}
+{% macro _federation_package_type_overrides() %}
   {% set cfg = dbt_bigquery_federation._federation_get_config() %}
   {% set overrides = cfg.get('type_overrides', {}) %}
   {% if overrides is not mapping %}
     {{ exceptions.raise_compiler_error('vars.dbt_bigquery_federation.type_overrides must be a mapping') }}
   {% endif %}
+  {# All currently registered providers share the postgres_federation type profile.
+     Spanner will introduce provider/profile-scoped overrides instead of extending this assumption. #}
   {% set normalized = namespace(map={}) %}
   {% for key, value in overrides.items() %}
-    {% set normalized_key = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, key) %}
+    {% set normalized_key = dbt_bigquery_federation._postgres_federation_normalize_type_name(key) %}
     {% do normalized.map.update({normalized_key: value}) %}
   {% endfor %}
   {{ return(normalized.map) }}
