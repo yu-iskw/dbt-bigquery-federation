@@ -68,6 +68,12 @@ resource "google_project_iam_member" "runner_alloydb_client" {
   member  = var.runner_principal
 }
 
+resource "google_project_iam_member" "runner_service_usage_consumer" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = var.runner_principal
+}
+
 resource "google_project_iam_member" "connection_alloydb_client" {
   project = var.project_id
   role    = "roles/alloydb.client"
