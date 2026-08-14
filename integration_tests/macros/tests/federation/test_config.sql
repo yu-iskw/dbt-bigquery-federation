@@ -57,4 +57,19 @@
   {% do dbt_unittest.assert_equals(resolved.connection.dialect, 'postgres') %}
   {% do dbt_unittest.assert_equals(resolved.connection.metadata_profile, 'postgres_information_schema') %}
   {% do dbt_unittest.assert_equals(resolved.connection.type_profile, 'postgres_federation') %}
+  {% do dbt_unittest.assert_equals(resolved.connection.metadata_connection_id, resolved.connection.connection_id) %}
+{% endmacro %}
+
+{% macro test_spanner_metadata_connection_resolution() %}
+  {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection('spanner_app') %}
+  {% do dbt_unittest.assert_equals(resolved.ok, true) %}
+  {% do dbt_unittest.assert_equals(resolved.connection.provider, 'spanner_google_sql') %}
+  {% do dbt_unittest.assert_equals(
+    resolved.connection.connection_id,
+    'projects/example/locations/us/connections/spanner-data'
+  ) %}
+  {% do dbt_unittest.assert_equals(
+    resolved.connection.metadata_connection_id,
+    'projects/example/locations/us/connections/spanner-metadata'
+  ) %}
 {% endmacro %}
