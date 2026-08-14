@@ -3,8 +3,8 @@ resource "random_password" "database" {
   special = false
 }
 
-# checkov:skip=CKV2_GCP_18:This dedicated E2E VPC has no user-managed VM NICs. AlloyDB uses Private Service Access, and local fixture loading uses the authenticated AlloyDB Auth Proxy with require_connectors enabled.
 resource "google_compute_network" "alloydb" {
+  # checkov:skip=CKV2_GCP_18:Dedicated E2E VPC has no user-managed VM NICs; AlloyDB uses Private Service Access and fixture loading uses the authenticated Auth Proxy.
   project                 = var.project_id
   name                    = "${var.name_prefix}-alloydb"
   auto_create_subnetworks = false
