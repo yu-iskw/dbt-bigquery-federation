@@ -22,8 +22,9 @@ resource "google_project_service" "required" {
 }
 
 resource "google_project_service_identity" "bigquery_connection" {
-  project = var.project_id
-  service = "bigqueryconnection.googleapis.com"
+  provider = google-beta
+  project  = var.project_id
+  service  = "bigqueryconnection.googleapis.com"
 
   depends_on = [google_project_service.required]
 }
