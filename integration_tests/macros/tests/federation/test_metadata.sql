@@ -1,3 +1,4 @@
+{# Metadata wrapper and provider-profile smoke tests. #}
 {% macro test_postgres_metadata_remote_sql() %}
   {% set sql = dbt_bigquery_federation._federation_provider_metadata_remote_sql('cloud_sql_postgres', 'public', 'orders') %}
   {% set expected =
