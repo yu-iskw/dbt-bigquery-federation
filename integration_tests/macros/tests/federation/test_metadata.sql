@@ -1,8 +1,15 @@
 {% macro test_postgres_metadata_remote_sql() %}
   {% set sql = dbt_bigquery_federation._federation_provider_metadata_remote_sql('cloud_sql_postgres', 'public', 'orders') %}
+  {% set expected =
+    'select column_name, data_type, udt_name, ordinal_position, is_nullable, ' ~
+    'numeric_precision, numeric_scale, character_maximum_length ' ~
+    'from information_schema.columns ' ~
+    "where table_schema = 'public' and table_name = 'orders' " ~
+    'order by ordinal_position'
+  %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_collapse_ws(sql),
-    "select column_name, data_type, udt_name, ordinal_position, is_nullable, numeric_precision, numeric_scale, character_maximum_length from information_schema.columns where table_schema = 'public' and table_name = 'orders' order by ordinal_position"
+    expected
   ) %}
 {% endmacro %}
 
