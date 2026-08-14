@@ -26,3 +26,32 @@
   {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection('missing_alias') %}
   {% do dbt_unittest.assert_equals(resolved.ok, false) %}
 {% endmacro %}
+
+{% macro test_provider_descriptors() %}
+  {% set cloud_sql = dbt_bigquery_federation._federation_provider_descriptor('cloud_sql_postgres') %}
+  {% set alloydb = dbt_bigquery_federation._federation_provider_descriptor('alloydb_postgres') %}
+  {% do dbt_unittest.assert_equals(cloud_sql.dialect, 'postgres') %}
+  {% do dbt_unittest.assert_equals(alloydb.dialect, 'postgres') %}
+  {% do dbt_unittest.assert_equals(cloud_sql.type_profile, 'postgres_federation') %}
+  {% do dbt_unittest.assert_equals(alloydb.type_profile, 'postgres_federation') %}
+  {% do dbt_unittest.assert_equals(cloud_sql.connection_kind, 'cloud_sql') %}
+  {% do dbt_unittest.assert_equals(alloydb.connection_kind, 'alloydb') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_provider_capability('alloydb_postgres', 'schema_discovery'),
+    true
+  ) %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_provider_is_supported('spanner_google_sql'),
+    false
+  ) %}
+{% endmacro %}
+
+{% macro test_alloydb_connection_resolution() %}
+  {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection('analytics_alloydb') %}
+  {% do dbt_unittest.assert_equals(resolved.ok, true) %}
+  {% do dbt_unittest.assert_equals(resolved.connection.provider, 'alloydb_postgres') %}
+  {% do dbt_unittest.assert_equals(resolved.connection.connection_kind, 'alloydb') %}
+  {% do dbt_unittest.assert_equals(resolved.connection.dialect, 'postgres') %}
+  {% do dbt_unittest.assert_equals(resolved.connection.metadata_profile, 'postgres_information_schema') %}
+  {% do dbt_unittest.assert_equals(resolved.connection.type_profile, 'postgres_federation') %}
+{% endmacro %}
