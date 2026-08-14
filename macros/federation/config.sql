@@ -37,6 +37,11 @@
   {% if not dbt_bigquery_federation._federation_connection_id_is_valid(cid.value) %}
     {{ return({'ok': false, 'error': 'connection_id for ' ~ connection_name ~ ' must match projects/PROJECT/locations/LOCATION/connections/NAME', 'connection': none}) }}
   {% endif %}
+  {% set metadata_cid = namespace(value=conn.get('metadata_connection_id', cid.value)) %}
+  {% if metadata_cid.value is not none %}{% set metadata_cid.value = metadata_cid.value | string | trim %}{% endif %}
+  {% if not dbt_bigquery_federation._federation_connection_id_is_valid(metadata_cid.value) %}
+    {{ return({'ok': false, 'error': 'metadata_connection_id for ' ~ connection_name ~ ' must match projects/PROJECT/locations/LOCATION/connections/NAME', 'connection': none}) }}
+  {% endif %}
   {% set defaults = conn.get('defaults', {}) %}
   {% if defaults is not mapping %}
     {{ return({'ok': false, 'error': 'Connection ' ~ connection_name ~ ' defaults must be a mapping', 'connection': none}) }}
@@ -62,6 +67,7 @@
   {{ return({'ok': true, 'error': none, 'connection': {
     'alias': connection_name,
     'connection_id': cid.value | string,
+    'metadata_connection_id': metadata_cid.value | string,
     'provider': provider,
     'connection_kind': descriptor.connection_kind,
     'dialect': descriptor.dialect,
