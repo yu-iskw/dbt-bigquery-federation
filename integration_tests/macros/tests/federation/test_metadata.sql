@@ -16,6 +16,6 @@
   {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection('application_pg') %}
   {% do dbt_unittest.assert_equals(resolved.ok, true) %}
   {% set sql = dbt_bigquery_federation._federation_metadata_query_sql(resolved.connection, 'public', 'orders') %}
-  {% do dbt_unittest.assert_true('EXTERNAL_QUERY' in sql) %}
-  {% do dbt_unittest.assert_true('information_schema.columns' in sql) %}
+  {% do dbt_unittest.assert_equals('EXTERNAL_QUERY' in sql, true) %}
+  {% do dbt_unittest.assert_equals('information_schema.columns' in sql, true) %}
 {% endmacro %}
