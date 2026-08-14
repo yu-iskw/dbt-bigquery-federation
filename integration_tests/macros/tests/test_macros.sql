@@ -1,5 +1,7 @@
 {% macro test_macros() %}
   {% do test_connection_id_validation() %}
+  {% do test_provider_descriptors() %}
+  {% do test_alloydb_connection_resolution() %}
   {% do test_quote_safe_and_mixed_case_identifiers() %}
   {% do test_quote_literal_doubles_single_quotes() %}
   {% do test_external_query_renders_without_planning() %}
