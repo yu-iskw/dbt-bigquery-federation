@@ -1,4 +1,4 @@
-"""Nox sessions for dbt Fusion (Python matrix; Postgres + DuckDB).
+"""Nox sessions for dbt Fusion (Python matrix; Postgres Jinja engine).
 
 CI must run these with `nox -f noxfile_fusion.py`; default `noxfile.py` loads
 only dbt Core sessions from `noxfile_core.py`.
@@ -39,14 +39,14 @@ def dev_integration_tests_fusion(session):
 
 @nox.session(python=PYTHON_VERSIONS)
 def fusion_unit_tests(session):
-    """Run real Fusion unit tests on Postgres and DuckDB."""
+    """Run real Fusion unit tests on Postgres (non-blocking in CI)."""
     for adapter in ADAPTERS:
         run_dbt_shell_script(session, FUSION_GROUP, adapter, "run_unit_tests.sh")
 
 
 @nox.session(python=PYTHON_VERSIONS)
 def fusion_integration_tests(session):
-    """Run real Fusion integration tests on Postgres and DuckDB."""
+    """Run real Fusion integration tests on Postgres (non-blocking in CI)."""
     for adapter in ADAPTERS:
         run_dbt_shell_script(session, FUSION_GROUP, adapter, "run_integration_tests.sh")
 

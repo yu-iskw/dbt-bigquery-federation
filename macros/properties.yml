@@ -1,14 +1,71 @@
 version: 2
 
 macros:
-  - name: normalize_text
+  - name: federated_relation
     description: >
-      Returns a SQL expression that normalizes string input (cast to the adapter string
-      type, lowercased, trimmed; blank strings become null). Embed the result in SELECT
-      lists or expressions.
+      Returns a BigQuery EXTERNAL_QUERY table expression for a pinned Cloud SQL
+      PostgreSQL relation. Plans types from vars.dbt_bigquery_federation pins;
+      does not query the warehouse. Embed the result in a FROM clause. Under
+      safe, compile warns when a decimal fold remote-casts offenders and loses
+      pushdown.
     arguments:
-      - name: expression
+      - name: connection
+        type: string
+        description: Connection alias under vars.dbt_bigquery_federation.connections.
+      - name: table
         type: string
         description: >
-          SQL expression or column reference to normalize (pass a valid SQL fragment,
-          e.g. a column name or parenthesized expression).
+          Remote table name. Always PostgreSQL-quoted (double quotes; internal
+          quotes doubled).
+      - name: schema
+        type: string
+        description: >
+          Remote schema. Always PostgreSQL-quoted. Defaults to the connection
+          defaults.schema when omitted.
+      - name: type_policy
+        type: string
+        description: Optional policy override; safe or strict.
+      - name: overrides
+        type: dict
+        description: >
+          Optional mapping of column name to {strategy, remote_type, target_type}.
+
+  - name: external_query
+    description: >
+      Returns a BigQuery EXTERNAL_QUERY table expression for trusted raw remote
+      SQL. Does not run the type planner. The dbt identity executes this string
+      on the remote database.
+    arguments:
+      - name: connection
+        type: string
+        description: Connection alias under vars.dbt_bigquery_federation.connections.
+      - name: sql
+        type: string
+        description: Trusted remote SQL to pass through to EXTERNAL_QUERY.
+
+  - name: federation_inspect
+    description: >
+      Plans a pinned relation and logs a conversion table (column, source type,
+      target, action, lossiness, pushdown). Intended for dbt run-operation.
+      Optional type_policy and overrides follow live so inspect can mirror a
+      federated_relation invocation. live=true is rejected in v0.1.
+    arguments:
+      - name: connection
+        type: string
+        description: Connection alias under vars.dbt_bigquery_federation.connections.
+      - name: schema
+        type: string
+        description: Remote schema name.
+      - name: table
+        type: string
+        description: Remote table name.
+      - name: live
+        type: boolean
+        description: Reserved. Must be false in v0.1.
+      - name: type_policy
+        type: string
+        description: Optional policy override; safe or strict.
+      - name: overrides
+        type: dict
+        description: >
+          Optional mapping of column name to {strategy, remote_type, target_type}.

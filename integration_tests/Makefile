@@ -1,7 +1,7 @@
 .PHONY: setup clean test \
 	postgres-up postgres-wait postgres-down postgres-logs \
-	run-unit-tests run-unit-tests-postgres run-unit-tests-duckdb \
-	run-integration-tests run-integration-tests-postgres run-integration-tests-duckdb \
+	run-unit-tests run-unit-tests-postgres \
+	run-integration-tests run-integration-tests-postgres \
 	run-unit-tests-fusion run-integration-tests-fusion run-fusion-tests
 
 # Nox 2026+ errors if both NO_COLOR and FORCE_COLOR are set (common in IDEs/CI).
@@ -18,7 +18,6 @@ setup:
 	uv sync
 
 clean:
-	rm -f ./*.duckdb
 	rm -rf target logs dbt_packages
 
 postgres-up:
@@ -27,12 +26,12 @@ postgres-up:
 postgres-wait:
 	@started_at="$$(date +%s)"; \
 	while true; do \
-		state="$$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' dbt-package-template-postgres 2>/dev/null || true)"; \
+		state="$$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' dbt-bigquery-federation-postgres 2>/dev/null || true)"; \
 		if [ "$$state" = "healthy" ]; then \
 			exit 0; \
 		fi; \
 		if [ -z "$$state" ]; then \
-			echo "Postgres container dbt-package-template-postgres was not created successfully." >&2; \
+			echo "Postgres container dbt-bigquery-federation-postgres was not created successfully." >&2; \
 			exit 1; \
 		fi; \
 		if [ $$(( $$(date +%s) - $$started_at )) -ge 60 ]; then \
@@ -52,12 +51,7 @@ run-unit-tests-postgres:
 	./scripts/run_with_postgres_container.sh \
 		bash -lc "$(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_110)\" && $(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_111)\""
 
-run-unit-tests-duckdb:
-	$(UV_RUN_NOX) -s "unit_tests-3.12(adapter='duckdb', uv_group='dbt-core-1-10')"
-	$(UV_RUN_NOX) -s "unit_tests-3.12(adapter='duckdb', uv_group='dbt-core-1-11')"
-
 run-unit-tests: clean run-unit-tests-postgres
-	$(MAKE) run-unit-tests-duckdb
 
 run-unit-tests-fusion:
 	./scripts/run_with_postgres_container.sh \
@@ -67,12 +61,7 @@ run-integration-tests-postgres:
 	./scripts/run_with_postgres_container.sh \
 		bash -lc "$(UV_RUN_NOX) -s \"$(NOX_INT_PG_110)\" && $(UV_RUN_NOX) -s \"$(NOX_INT_PG_111)\""
 
-run-integration-tests-duckdb:
-	$(UV_RUN_NOX) -s "integration_tests-3.12(adapter='duckdb', uv_group='dbt-core-1-10')"
-	$(UV_RUN_NOX) -s "integration_tests-3.12(adapter='duckdb', uv_group='dbt-core-1-11')"
-
 run-integration-tests: clean run-integration-tests-postgres
-	$(MAKE) run-integration-tests-duckdb
 
 run-integration-tests-fusion:
 	./scripts/run_with_postgres_container.sh \

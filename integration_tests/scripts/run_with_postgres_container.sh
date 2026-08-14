@@ -3,7 +3,7 @@ set -euo pipefail
 
 INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${INTEGRATION_TESTS_DIR}/docker-compose.postgres.yml"
-CONTAINER_NAME="dbt-package-template-postgres"
+CONTAINER_NAME="dbt-bigquery-federation-postgres"
 WAIT_SECONDS="${POSTGRES_WAIT_TIMEOUT_SECONDS:-60}"
 
 require_command() {

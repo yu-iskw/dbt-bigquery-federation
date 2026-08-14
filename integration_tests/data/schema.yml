@@ -2,7 +2,7 @@ version: 2
 
 seeds:
   - name: raw_users
-    description: Sample seed data used by the template integration tests
+    description: Sample seed data used by the integration tests
     columns:
       - name: id
         tests:

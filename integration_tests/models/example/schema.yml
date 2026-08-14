@@ -2,15 +2,15 @@ version: 2
 
 models:
   - name: stg_users
-    description: Example staging model that demonstrates how to call a package macro
+    description: Example staging model used for GCP-free dbt build smoke tests
     columns:
       - name: id
         tests:
           - not_null
           - unique
-      - name: normalized_name
+      - name: name
         tests:
           - not_null
-      - name: normalized_email
+      - name: email
         tests:
           - not_null

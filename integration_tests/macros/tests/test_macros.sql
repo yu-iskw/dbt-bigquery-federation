@@ -1,5 +1,32 @@
 {% macro test_macros() %}
-  {% do test_normalize_text_trims_and_lowercases() %}
-  {% do test_normalize_text_returns_none_for_blank_input() %}
-  {% do test_normalize_text_returns_none_for_null_input() %}
+  {% do test_connection_id_validation() %}
+  {% do test_quote_safe_and_mixed_case_identifiers() %}
+  {% do test_quote_literal_doubles_single_quotes() %}
+  {% do test_external_query_renders_without_planning() %}
+  {% do test_plan_all_native_passthrough() %}
+  {% do test_plan_uuid_jsonb_safe_projection() %}
+  {% do test_plan_uuid_strict_errors() %}
+  {% do test_plan_unknown_type_errors() %}
+  {% do test_plan_bounded_numeric_passthrough() %}
+  {% do test_plan_mixed_decimals_safe_projects_offender() %}
+  {% do test_plan_mixed_decimals_strict_errors() %}
+  {% do test_plan_mixed_bignumeric_and_unbounded_keeps_option() %}
+  {% do test_plan_all_bignumeric_passthrough() %}
+  {% do test_plan_mixed_remaining_decimals_safe_keeps_option() %}
+  {% do test_plan_uuid_override_remote_cast() %}
+  {% do test_plan_missing_pin_errors() %}
+  {% do test_plan_type_overrides_money_under_strict() %}
+  {% do test_plan_empty_and_duplicate_pins_error() %}
+  {% do test_plan_bit_native_passthrough() %}
+  {% do test_plan_pg_lsn_safe_remote_cast() %}
+  {% do test_plan_search_types_safe_remote_cast() %}
+  {% do test_plan_integer_array_unknown_errors() %}
+  {% do test_plan_json_native_passthrough() %}
+  {% do test_plan_type_overrides_uuid_uppercase_under_strict() %}
+  {% do test_plan_numeric_typmod_errors_with_precision_scale_hint() %}
+  {% do test_plan_unsafe_remote_type_errors() %}
+  {% do test_federated_relation_renders_passthrough() %}
+  {% do test_federation_inspect_reports_pushdown() %}
+  {% do test_federation_inspect_strict_requires_overrides() %}
+  {% do test_federation_inspect_forwards_plan_errors() %}
 {% endmacro %}

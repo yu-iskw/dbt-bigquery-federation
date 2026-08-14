@@ -18,7 +18,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
         dbt-group: ["dbt-core-1-10", "dbt-core-1-11"]
-        adapter: ["postgres", "duckdb"]
+        adapter: ["postgres"]
     services:
       postgres:
         image: postgres:16
@@ -56,10 +56,8 @@ jobs:
           DBT_POSTGRES_PASSWORD: postgres
           DBT_POSTGRES_DATABASE: dbt_package_template
           DBT_POSTGRES_SCHEMA: dbt_package_template
-          DBT_DUCKDB_PATH: ${{ github.workspace }}/integration_tests/target/ci_${{ github.run_id }}_${{ matrix.python-version }}_${{ matrix.dbt-group }}_${{ matrix.adapter }}.duckdb
         run: |
           mkdir -p target
-          rm -f "${DBT_DUCKDB_PATH}"
           uv run nox -s "unit_tests-${{ matrix.python-version }}(adapter='${{ matrix.adapter }}', uv_group='${{ matrix.dbt-group }}')"
           uv run nox -s "integration_tests-${{ matrix.python-version }}(adapter='${{ matrix.adapter }}', uv_group='${{ matrix.dbt-group }}')"
 
@@ -75,6 +73,7 @@ jobs:
 
   fusion:
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -116,9 +115,9 @@ jobs:
           DBT_POSTGRES_PASSWORD: postgres
           DBT_POSTGRES_DATABASE: dbt_package_template
           DBT_POSTGRES_SCHEMA: dbt_package_template
-          DBT_DUCKDB_PATH: ${{ github.workspace }}/integration_tests/target/fusion_${{ github.run_id }}_${{ matrix.python-version }}.duckdb
+          # Fusion preview treats postgres as experimental (dbt1005).
+          DBT_ALLOW_EXPERIMENTAL_ADAPTERS: "true"
         run: |
           mkdir -p target
-          rm -f "${DBT_DUCKDB_PATH}"
           uv run nox -f noxfile_fusion.py -s "fusion_unit_tests-${{ matrix.python-version }}"
           uv run nox -f noxfile_fusion.py -s "fusion_integration_tests-${{ matrix.python-version }}"
