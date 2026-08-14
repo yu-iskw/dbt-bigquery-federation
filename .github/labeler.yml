@@ -5,32 +5,32 @@
 CI:
   - changed-files:
       - any-glob-to-any-file:
-          - '.github/*'
-          - '.github/**/*'
+          - ".github/*"
+          - ".github/**/*"
 
 # Related to dbt analysis
 integration-tests:
   - changed-files:
       - any-glob-to-any-file:
-          - 'integration_tests/*'
-          - 'integration_tests/**/*'
+          - "integration_tests/*"
+          - "integration_tests/**/*"
 
 # Related to dbt models
 macros:
   - changed-files:
       - any-glob-to-any-file:
-          - 'macros/*'
-          - 'macros/**/*'
+          - "macros/*"
+          - "macros/**/*"
 
 # Foundational changes
 core:
   - changed-files:
-      - any-glob-to-any-file: 'dbt_project.yml'
+      - any-glob-to-any-file: "dbt_project.yml"
 
 # Related to documentations
 docs:
   - changed-files:
       - any-glob-to-any-file:
-          - 'docs/*.md'
-          - 'docs/**/*.md'
-          - 'README.md'
+          - "docs/*.md"
+          - "docs/**/*.md"
+          - "README.md"
