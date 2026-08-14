@@ -14,3 +14,4 @@ Goal: Repeat `/simplify` → `/thermos` → address issues → `/verifier` acros
 - [x] Re-review remaining defects
 - [x] ARRAY udt_name restriction, pin/diff declared type, shared GoogleSQL quoter
 - [x] Confirm thermos loop-2 remaining High/Medium drift-signature issues are fixed
+- [x] Re-run thermos High-only after typmod fix: no remaining High/Medium
