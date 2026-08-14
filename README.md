@@ -95,7 +95,7 @@ During parse-only evaluation (`execute=false`), the macro emits a passthrough `S
 
 ### `pinned`
 
-Use Git-reviewed metadata under `vars.dbt_bigquery_federation.tables` and perform no live metadata lookup.
+Use Git-reviewed metadata under `vars.dbt_bigquery_federation.tables` and perform no live metadata lookup. Remote SQL lists the pinned columns instead of `SELECT *`, so newly added source columns do not appear until the pin is updated.
 
 ```yaml
 vars:

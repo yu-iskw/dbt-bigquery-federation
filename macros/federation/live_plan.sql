@@ -27,7 +27,9 @@
   {% if not folded.ok %}
     {{ return({'ok': false, 'error': relation ~ ': ' ~ folded.error, 'plan': none}) }}
   {% endif %}
-  {% set sql_plan = dbt_bigquery_federation._federation_build_remote_sql(connection_cfg.provider, schema, table, folded.columns) %}
+  {% set sql_plan = dbt_bigquery_federation._federation_build_remote_sql(
+    connection_cfg.provider, schema, table, folded.columns, metadata_source == 'pinned'
+  ) %}
   {{ return({'ok': true, 'error': none, 'plan': {
     'provider': connection_cfg.provider,
     'connection': connection_cfg.alias,

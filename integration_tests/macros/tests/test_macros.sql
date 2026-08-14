@@ -5,6 +5,7 @@
   {% do test_spanner_metadata_connection_resolution() %}
   {% do test_quote_safe_and_mixed_case_identifiers() %}
   {% do test_quote_literal_doubles_single_quotes() %}
+  {% do test_spanner_quote_literal_uses_googlesql_escapes() %}
   {% do test_external_query_renders_without_planning() %}
   {% do test_postgres_metadata_remote_sql() %}
   {% do test_alloydb_metadata_uses_postgres_profile() %}
@@ -17,6 +18,7 @@
   {% do test_schema_diff_detects_add_remove_change() %}
   {% do test_schema_diff_no_changes() %}
   {% do test_schema_diff_report_includes_precision_scale() %}
+  {% do test_yaml_double_quoted_escapes_special_characters() %}
   {% do test_plan_all_native_passthrough() %}
   {% do test_plan_uuid_jsonb_safe_projection() %}
   {% do test_plan_uuid_strict_errors() %}

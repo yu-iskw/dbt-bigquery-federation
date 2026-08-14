@@ -74,6 +74,6 @@
 {% macro test_spanner_pinned_federated_relation_renders_priority() %}
   {% set sql = dbt_bigquery_federation.federated_relation('spanner_app', 'Orders') %}
   {% set actual = dbt_bigquery_federation._federation_collapse_ws(sql) %}
-  {% set expected = "EXTERNAL_QUERY('projects/example/locations/us/connections/spanner-data', 'select * from `Orders`', '" ~ '{"query_execution_priority":"low"}' ~ "')" %}
+  {% set expected = "EXTERNAL_QUERY('projects/example/locations/us/connections/spanner-data', 'select `id`, `payload` from `Orders`', '" ~ '{"query_execution_priority":"low"}' ~ "')" %}
   {% do dbt_unittest.assert_equals(actual, expected) %}
 {% endmacro %}

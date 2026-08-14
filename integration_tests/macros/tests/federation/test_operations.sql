@@ -40,3 +40,9 @@
   {% do dbt_unittest.assert_equals('numeric(12,2) -> numeric(20,4)' in report, true) %}
   {% do dbt_unittest.assert_equals('~ amount ' in report, true) %}
 {% endmacro %}
+
+{% macro test_yaml_double_quoted_escapes_special_characters() %}
+  {% do dbt_unittest.assert_equals(dbt_bigquery_federation._federation_yaml_double_quoted('id'), '"id"') %}
+  {% do dbt_unittest.assert_equals(dbt_bigquery_federation._federation_yaml_double_quoted('a: b'), '"a: b"') %}
+  {% do dbt_unittest.assert_equals(dbt_bigquery_federation._federation_yaml_double_quoted('x"y'), '"x\\"y"') %}
+{% endmacro %}
