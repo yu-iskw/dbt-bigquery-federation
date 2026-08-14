@@ -402,6 +402,21 @@ dbt run-operation federation_inspect \
 
 Default behavior is to inspect live metadata unless explicitly asked to inspect a pin only.
 
+The current pin-planner signature keeps `type_policy` and `overrides` after `live` so inspect can mirror a `federated_relation` invocation and positional `true` still means `live`:
+
+```text
+federation_inspect(
+  connection,
+  schema,
+  table,
+  live=false,
+  type_policy=None,
+  overrides=None
+)
+```
+
+That implementation still rejects `live=true` until live metadata lands. Do not reorder those kwargs.
+
 Example:
 
 ```text
@@ -739,6 +754,8 @@ projects/PROJECT_ID/locations/LOCATION/connections/CONNECTION_ID
 
 This avoids ambiguous project resolution in reusable views/models and allows the package to parse the configured connection location for diagnostics.
 
+Different dbt targets MAY use different `env_var` names or target-scoped vars for `connection_id`. Do not treat a single production connection resource path as the only configuration.
+
 ### 9.2 Override precedence
 
 Use one deterministic precedence chain:
@@ -982,11 +999,15 @@ date                              -> DATE
 timestamp without time zone       -> DATETIME
 timestamp with time zone          -> TIMESTAMP
 numeric                           -> NUMERIC/BIGNUMERIC/other plan
+bit / bit varying / varbit        -> BYTES (native)
+json                              -> STRING (native; do not map to BigQuery JSON)
 uuid                              -> remote cast to text under safe
 jsonb                             -> remote cast to text under safe
 money                             -> remote cast or explicit override
 inet/cidr/macaddr                 -> remote cast to text under safe
 interval                          -> remote cast to text under safe
+pg_lsn / tsquery / tsvector / txid_snapshot -> remote cast to text under safe
+arrays                            -> unknown (not in Google's Cloud SQL EXTERNAL_QUERY map)
 unknown extension/domain type     -> fail unless explicitly configured
 ```
 
@@ -1042,6 +1063,14 @@ policy allows per-column fallback?
 The implementation MUST not reduce BigQuery BIGNUMERIC to an incorrect simplistic integer precision rule. BigQuery documents BIGNUMERIC as having approximately 76.76 digits of precision and scale up to 38; representability checks must either implement the actual documented range or deliberately define a conservative supported subset and label it as such.
 
 Unknown/unbounded PostgreSQL numeric precision should not be assumed to fit.
+
+The current pin-planner decimal fold MUST keep these Google option rules:
+
+- omitted `EXTERNAL_QUERY` options JSON means Google's default `default_type_for_decimal_columns=NUMERIC`;
+- never emit `"numeric"`;
+- emit `"bignumeric"` when **any** remaining native decimal needs `BIGNUMERIC`, including a mix of NUMERIC-fit and BIGNUMERIC-fit siblings after unbounded offenders are remote-cast;
+- widening NUMERIC-range values to `BIGNUMERIC` stays exact;
+- remote-cast only unbounded/overflow offenders under `safe`; do not stringify a well-typed `numeric(12,2)` because a sibling unbounded `numeric` exists.
 
 ---
 
@@ -1125,6 +1154,10 @@ EXTERNAL_QUERY(
 )
 ```
 
+Omitting the options JSON selects Google's `NUMERIC` default. Never emit `"numeric"`.
+
+When that `SELECT * FROM T` shape survives, BigQuery may prune columns and push filters. Filter literals are limited to the Google-listed types; `NUMERIC`, `BIGNUMERIC`, `TIME`, and `BYTES` are not among them.
+
 ### 16.2 Passthrough with query-wide options
 
 ```sql
@@ -1134,6 +1167,8 @@ EXTERNAL_QUERY(
   '{"default_type_for_decimal_columns":"bignumeric"}'
 )
 ```
+
+Use when **any** remaining native decimal needs `BIGNUMERIC`, including a mix of NUMERIC-fit and BIGNUMERIC-fit siblings after offender casts.
 
 ### 16.3 Stable projection
 
@@ -1275,6 +1310,8 @@ where updated_at > (
 
 The package MUST NOT set `on_schema_change` implicitly.
 
+When the plan is native `SELECT * FROM T`, BigQuery may prune columns and push supported outer filters into Cloud SQL. Filter literals are the Google-listed types, not `NUMERIC` / `BIGNUMERIC` / `TIME` / `BYTES`. When normalization requires source expressions, pushdown cannot be assumed.
+
 Documentation should explain that an outer incremental predicate can be pushed down only when BigQuery's federation optimizer can apply SQL pushdowns. If normalization changes the source query away from the supported fast-path shape, users with high-volume sources may need an explicit remote predicate or the low-level `external_query` API.
 
 A later high-level structured remote-filter API may be considered, but arbitrary raw `where` strings should not be the default high-level interface.
@@ -1364,9 +1401,19 @@ The package SHOULD parse location from fully qualified connection IDs and includ
 
 It MAY validate obvious incompatibilities when target location is available reliably, but it must not invent correctness when context is incomplete.
 
+The current pin-planner does not fail compilation on a location mismatch (the package test target is Postgres and has no BigQuery location). Operators must align locations in GCP.
+
 ### 21.4 Quotas and cost
 
 Documentation should surface federation limitations relevant to production planning, including connection limits, cross-region data transfer/quotas where applicable, and the fact that source systems incur their own workload/cost.
+
+Google documents:
+
+- at most 10 unique connections in one federated query;
+- a cross-region federated-query bytes quota;
+- `maximum bytes billed` is not supported for federated queries.
+
+Isolate Cloud SQL from federated load with a read replica. Compile-time planning does not enforce these quotas.
 
 ### 21.5 SQL injection boundary
 
@@ -1382,6 +1429,8 @@ trusted raw SQL
 ```
 
 Provider-specific quoting is mandatory for identifiers and literals.
+
+The current pin-planner **always** PostgreSQL-quotes identifiers (double quotes; internal quotes doubled). There is no unquoted-if-safe path.
 
 Only `external_query` is the explicit raw-SQL escape hatch.
 
@@ -1401,7 +1450,7 @@ Document that `target/`, dbt logs, and CI artifacts should be handled accordingl
 ## 22. Performance principles
 
 1. Preserve remote `SELECT * FROM T` when correctness and requested schema semantics allow it.
-2. Prefer query-wide `EXTERNAL_QUERY` options over per-column casts when they preserve semantics.
+2. Prefer a query-wide `bignumeric` option over per-column casts when remaining native decimals need it, including a mix of NUMERIC-fit and BIGNUMERIC-fit siblings after offender casts. Never emit `"numeric"`.
 3. Keep metadata discovery narrow and relation-scoped.
 4. Never scan source rows merely to discover a schema.
 5. Report when a plan loses automatic pushdown eligibility.
@@ -1442,7 +1491,7 @@ Test:
 - normalized metadata fixtures;
 - provider type maps;
 - quoting;
-- decimal boundaries;
+- decimal boundaries, including mixed remaining native decimals that take `decimal_option=bignumeric` and never emit `"numeric"`;
 - conversion policies;
 - projection selection;
 - generated remote SQL strings;
@@ -1730,7 +1779,9 @@ Required changes:
 9. correct decimal/BIGNUMERIC boundary assumptions;
 10. add dbt-bigquery and real federation test layers.
 
-Do not throw away working planner tests. Reframe fixture pins as normalized-metadata fixtures and test the same planner with both discovered and pinned inputs.
+Preserve the current pin-planner's always-quoted identifiers, Google type-map additions (`bit` / `varbit`, `pg_lsn` / search types, native `json`, unknown arrays), and decimal-option fold (omit `"numeric"`; emit `"bignumeric"` for remaining native mix). Do not throw away working planner tests.
+
+Reframe fixture pins as normalized-metadata fixtures and test the same planner with both discovered and pinned inputs.
 
 ---
 

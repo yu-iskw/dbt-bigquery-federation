@@ -18,16 +18,22 @@ dbt_harness_cd
   --target "${dbt_target}" \
   --select federation
 
-compiled_model="${ROOT}/target/compiled/dbt_bigquery_federation_integration_tests/models/federation/stg_federated_orders.sql"
-if [[ ! -f "${compiled_model}" ]]; then
-  echo "Expected compiled federated model at ${compiled_model}" >&2
-  exit 1
-fi
-if ! grep -q "EXTERNAL_QUERY" "${compiled_model}"; then
-  echo "Compiled federated model did not contain EXTERNAL_QUERY" >&2
-  exit 1
-fi
-if grep -q "run_query" "${compiled_model}"; then
-  echo "Compiled federated model unexpectedly contains run_query" >&2
-  exit 1
-fi
+compiled_dir="${ROOT}/target/compiled/dbt_bigquery_federation_integration_tests/models/federation"
+for compiled_model in \
+  "${compiled_dir}/stg_federated_orders.sql" \
+  "${compiled_dir}/stg_federated_orders_table.sql" \
+  "${compiled_dir}/stg_federated_orders_incremental.sql"
+do
+  if [[ ! -f "${compiled_model}" ]]; then
+    echo "Expected compiled federated model at ${compiled_model}" >&2
+    exit 1
+  fi
+  if ! grep -q "EXTERNAL_QUERY" "${compiled_model}"; then
+    echo "Compiled federated model did not contain EXTERNAL_QUERY: ${compiled_model}" >&2
+    exit 1
+  fi
+  if grep -q "run_query" "${compiled_model}"; then
+    echo "Compiled federated model unexpectedly contains run_query: ${compiled_model}" >&2
+    exit 1
+  fi
+done

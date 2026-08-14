@@ -29,7 +29,7 @@
   {% if key not in tables %}
     {{ return({
       'ok': false,
-      'error': 'Missing federation pin for ' ~ key ~ '. Declare columns under vars.dbt_bigquery_federation.tables.',
+      'error': 'Missing federation pin for connection ' ~ connection ~ ' key ' ~ key ~ '. Declare columns under vars.dbt_bigquery_federation.tables.',
       'pin': none,
       'connection': none
     }) }}

@@ -81,6 +81,28 @@ vars:
             scale: 10
           - name: ratio
             data_type: numeric
+      application_pg.public.bignumeric_decimals:
+        columns:
+          - name: wide_amount
+            data_type: numeric
+            precision: 40
+            scale: 10
+          - name: wide_fee
+            data_type: numeric
+            precision: 40
+            scale: 10
+      application_pg.public.mixed_remaining_decimals:
+        columns:
+          - name: amount
+            data_type: numeric
+            precision: 12
+            scale: 2
+          - name: wide
+            data_type: numeric
+            precision: 40
+            scale: 10
+          - name: ratio
+            data_type: numeric
       application_pg.public.prices:
         columns:
           - name: price
@@ -93,8 +115,55 @@ vars:
             data_type: bigint
           - name: id
             data_type: text
+      application_pg.public.bits:
+        columns:
+          - name: flags
+            data_type: bit
+          - name: packed
+            data_type: varbit
+          - name: masked
+            data_type: bit(8)
+      application_pg.public.pg_lsn_types:
+        columns:
+          - name: lsn
+            data_type: pg_lsn
+      application_pg.public.search_types:
+        columns:
+          - name: query
+            data_type: tsquery
+          - name: vector
+            data_type: tsvector
+          - name: snapshot
+            data_type: txid_snapshot
+      application_pg.public.int_array:
+        columns:
+          - name: data
+            data_type: integer[]
+      application_pg.public.json_native:
+        columns:
+          - name: payload
+            data_type: json
+      application_pg.public.uuids:
+        columns:
+          - name: user_uuid
+            data_type: uuid
+      application_pg.public.bad_numeric:
+        columns:
+          - name: amount
+            data_type: "numeric(12,2)"
+      application_pg.public.poison_cast:
+        columns:
+          - name: payload
+            data_type: text
+            strategy: remote_cast
+            remote_type: "text;drop"
+            target_type: STRING
     type_overrides:
       money:
+        strategy: remote_cast
+        remote_type: text
+        target_type: STRING
+      UUID:
         strategy: remote_cast
         remote_type: text
         target_type: STRING

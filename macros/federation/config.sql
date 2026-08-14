@@ -73,7 +73,13 @@
   {% if overrides is not mapping %}
     {{ exceptions.raise_compiler_error('vars.dbt_bigquery_federation.type_overrides must be a mapping') }}
   {% endif %}
-  {{ return(overrides) }}
+  {# v0.1 type_overrides are package-wide; the only provider is cloud_sql_postgres. #}
+  {% set normalized = namespace(map={}) %}
+  {% for key, value in overrides.items() %}
+    {% set normalized.key = dbt_bigquery_federation._federation_provider_normalize_type_name('cloud_sql_postgres', key) %}
+    {% do normalized.map.update({normalized.key: value}) %}
+  {% endfor %}
+  {{ return(normalized.map) }}
 {% endmacro %}
 
 {% macro _federation_resolve_policy(connection_cfg, type_policy) %}

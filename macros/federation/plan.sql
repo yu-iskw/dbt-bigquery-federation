@@ -78,6 +78,13 @@
     {{ return({'ok': false, 'error': 'Pin column ' ~ name ~ ' is missing data_type', 'classified': none}) }}
   {% endif %}
   {% set source_type = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, data_type) %}
+  {% if modules.re.match('^(numeric|decimal)\\s*\\(', source_type) is not none %}
+    {{ return({
+      'ok': false,
+      'error': 'Pin column ' ~ name ~ ' data_type ' ~ (data_type | string) ~ ' embeds precision/scale. Use bare numeric plus precision and scale fields.',
+      'classified': none
+    }) }}
+  {% endif %}
   {% set override = dbt_bigquery_federation._federation_lookup_override(column, type_overrides, invocation_overrides, source_type) %}
   {% if override is not none and override is not mapping %}
     {{ return({'ok': false, 'error': 'Override for column ' ~ name ~ ' must be a mapping', 'classified': none}) }}
@@ -116,7 +123,7 @@
     {% if policy == 'strict' %}
       {{ return({
         'ok': false,
-        'error': 'Column ' ~ name ~ ' has unsupported type ' ~ entry.data_type ~ ' under strict policy. Add a type_overrides or column override with strategy=remote_cast.',
+        'error': 'Column ' ~ name ~ ' has unsupported type ' ~ (data_type | string) ~ ' under ' ~ policy ~ ' policy. Add type_overrides or pin strategy.',
         'classified': none
       }) }}
     {% endif %}
@@ -126,7 +133,7 @@
   {% endif %}
   {{ return({
     'ok': false,
-    'error': 'Column ' ~ name ~ ' has unknown type ' ~ entry.data_type ~ ' under ' ~ policy ~ ' policy. Add a type override or pin strategy.',
+    'error': 'Column ' ~ name ~ ' has unknown type ' ~ (data_type | string) ~ ' under ' ~ policy ~ ' policy. Add type_overrides or pin strategy.',
     'classified': none
   }) }}
 {% endmacro %}
