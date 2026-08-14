@@ -38,6 +38,11 @@
   {% do test_plan_unsafe_remote_type_errors() %}
   {% do test_alloydb_postgres_plan_uses_shared_profile() %}
   {% do test_alloydb_postgres_router_matches_postgres_dialect() %}
+  {% do test_spanner_google_provider_descriptor() %}
+  {% do test_spanner_google_metadata_query() %}
+  {% do test_spanner_google_type_mapping() %}
+  {% do test_spanner_google_sql_rendering() %}
+  {% do test_spanner_google_live_plan_native_types() %}
   {% do test_federated_relation_renders_passthrough() %}
   {% do test_federation_inspect_reports_pushdown() %}
   {% do test_federation_inspect_strict_requires_overrides() %}
