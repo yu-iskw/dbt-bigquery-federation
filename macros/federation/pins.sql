@@ -60,7 +60,7 @@
     {% endif %}
     {% do seen.names.append(col_name) %}
     {% do col.update({'name': col_name}) %}
-    {% for field in ['precision', 'scale'] %}
+    {% for field in ['precision', 'scale', 'character_maximum_length'] %}
       {% set raw = col.get(field) %}
       {% if raw is not none and modules.re.match('^[0-9]+$', raw | string) is none %}
         {{ return({

@@ -45,7 +45,10 @@
     {% set lengths = result.columns['character_maximum_length'].values() %}
     {% for i in range(names | length) %}
       {% set raw_type = data_types[i] %}
-      {% do normalized.columns.append({'name': names[i] | string, 'data_type': dbt_bigquery_federation._federation_provider_normalize_type_name(provider, raw_type), 'raw_data_type': raw_type | string, 'udt_name': udt_names[i] if udt_names[i] is not none else none, 'ordinal_position': ordinals[i] | int, 'nullable': (nullables[i] | string | upper) == 'YES', 'precision': precisions[i] | int if precisions[i] is not none else none, 'scale': scales[i] | int if scales[i] is not none else none, 'character_maximum_length': lengths[i] | int if lengths[i] is not none else none}) %}
+      {% set data_type = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, raw_type) %}
+      {% set keep_numeric = dbt_bigquery_federation._federation_type_carries_numeric_typmod(data_type) %}
+      {% set keep_length = dbt_bigquery_federation._federation_type_carries_length_typmod(data_type) %}
+      {% do normalized.columns.append({'name': names[i] | string, 'data_type': data_type, 'raw_data_type': raw_type | string, 'udt_name': udt_names[i] if udt_names[i] is not none else none, 'ordinal_position': ordinals[i] | int, 'nullable': (nullables[i] | string | upper) == 'YES', 'precision': precisions[i] | int if keep_numeric and precisions[i] is not none else none, 'scale': scales[i] | int if keep_numeric and scales[i] is not none else none, 'character_maximum_length': lengths[i] | int if keep_length and lengths[i] is not none else none}) %}
     {% endfor %}
   {% elif descriptor.metadata_profile == 'spanner_google_information_schema' %}
     {% set names = result.columns['column_name'].values() %}

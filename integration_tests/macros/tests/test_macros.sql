@@ -19,6 +19,12 @@
   {% do test_schema_diff_no_changes() %}
   {% do test_schema_diff_user_defined_udt_matches_pin_type() %}
   {% do test_schema_diff_report_includes_precision_scale() %}
+  {% do test_schema_diff_ignores_integer_information_schema_precision() %}
+  {% do test_schema_diff_ignores_float_information_schema_precision() %}
+  {% do test_schema_diff_normalizes_timestamp_aliases() %}
+  {% do test_schema_diff_normalizes_varchar_aliases() %}
+  {% do test_schema_diff_detects_character_maximum_length_change() %}
+  {% do test_schema_diff_report_omits_integer_precision() %}
   {% do test_yaml_double_quoted_escapes_special_characters() %}
   {% do test_plan_all_native_passthrough() %}
   {% do test_plan_uuid_jsonb_safe_projection() %}
