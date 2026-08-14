@@ -5,5 +5,13 @@
 
 *.egg-info/
 
+# Terraform local E2E state and local inputs
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
 # Claude
 .claude/settings.local.json

@@ -27,6 +27,20 @@
         'arrays': false,
         'structs': false
       }
+    },
+    'spanner_google_sql': {
+      'connection_kind': 'spanner',
+      'dialect': 'spanner_google_sql',
+      'metadata_profile': 'spanner_google_information_schema',
+      'type_profile': 'spanner_google_federation',
+      'capabilities': {
+        'schema_discovery': true,
+        'select_star_pushdown': true,
+        'decimal_default_option': false,
+        'query_execution_priority': true,
+        'arrays': true,
+        'structs': false
+      }
     }
   } %}
   {% if provider not in providers %}

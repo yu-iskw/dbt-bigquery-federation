@@ -5,6 +5,8 @@
   {% endif %}
   {% if descriptor.dialect == 'postgres' %}
     {{ return(dbt_bigquery_federation._postgres_federation_quote_identifier(identifier)) }}
+  {% elif descriptor.dialect == 'spanner_google_sql' %}
+    {{ return(dbt_bigquery_federation._spanner_google_federation_quote_identifier(identifier)) }}
   {% endif %}
   {{ exceptions.raise_compiler_error('Unsupported federation dialect: ' ~ descriptor.dialect) }}
 {% endmacro %}
@@ -16,6 +18,8 @@
   {% endif %}
   {% if descriptor.dialect == 'postgres' %}
     {{ return(dbt_bigquery_federation._postgres_federation_quote_literal(value)) }}
+  {% elif descriptor.dialect == 'spanner_google_sql' %}
+    {{ return(dbt_bigquery_federation._spanner_google_federation_quote_literal(value)) }}
   {% endif %}
   {{ exceptions.raise_compiler_error('Unsupported federation dialect: ' ~ descriptor.dialect) }}
 {% endmacro %}
@@ -27,6 +31,8 @@
   {% endif %}
   {% if descriptor.type_profile == 'postgres_federation' %}
     {{ return(dbt_bigquery_federation._postgres_federation_normalize_type_name(data_type)) }}
+  {% elif descriptor.type_profile == 'spanner_google_federation' %}
+    {{ return(dbt_bigquery_federation._spanner_google_federation_normalize_type_name(data_type)) }}
   {% endif %}
   {{ exceptions.raise_compiler_error('Unsupported federation type profile: ' ~ descriptor.type_profile) }}
 {% endmacro %}
@@ -38,6 +44,8 @@
   {% endif %}
   {% if descriptor.type_profile == 'postgres_federation' %}
     {{ return(dbt_bigquery_federation._postgres_federation_type_entry(data_type)) }}
+  {% elif descriptor.type_profile == 'spanner_google_federation' %}
+    {{ return(dbt_bigquery_federation._spanner_google_federation_type_entry(data_type)) }}
   {% endif %}
   {{ exceptions.raise_compiler_error('Unsupported federation type profile: ' ~ descriptor.type_profile) }}
 {% endmacro %}
@@ -49,6 +57,8 @@
   {% endif %}
   {% if descriptor.dialect == 'postgres' %}
     {{ return(dbt_bigquery_federation._postgres_federation_render_remote_relation(schema, table)) }}
+  {% elif descriptor.dialect == 'spanner_google_sql' %}
+    {{ return(dbt_bigquery_federation._spanner_google_federation_render_remote_relation(schema, table)) }}
   {% endif %}
   {{ exceptions.raise_compiler_error('Unsupported federation dialect: ' ~ descriptor.dialect) }}
 {% endmacro %}
@@ -60,6 +70,8 @@
   {% endif %}
   {% if descriptor.dialect == 'postgres' %}
     {{ return(dbt_bigquery_federation._postgres_federation_render_remote_cast(quoted_name, remote_type)) }}
+  {% elif descriptor.dialect == 'spanner_google_sql' %}
+    {{ return(dbt_bigquery_federation._spanner_google_federation_render_remote_cast(quoted_name, remote_type)) }}
   {% endif %}
   {{ exceptions.raise_compiler_error('Unsupported federation dialect: ' ~ descriptor.dialect) }}
 {% endmacro %}

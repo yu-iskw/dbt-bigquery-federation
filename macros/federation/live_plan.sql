@@ -5,7 +5,7 @@
     {{ return({'ok': false, 'error': relation ~ ': ' ~ policy_result.error, 'plan': none}) }}
   {% endif %}
   {% set policy = policy_result.policy %}
-  {% set type_overrides = dbt_bigquery_federation._federation_package_type_overrides() %}
+  {% set type_overrides = dbt_bigquery_federation._federation_package_type_overrides(connection_cfg.provider) %}
   {% if overrides is none %}
     {% set invocation_overrides = {} %}
   {% elif overrides is mapping %}
@@ -28,25 +28,22 @@
     {{ return({'ok': false, 'error': relation ~ ': ' ~ folded.error, 'plan': none}) }}
   {% endif %}
   {% set sql_plan = dbt_bigquery_federation._federation_build_remote_sql(connection_cfg.provider, schema, table, folded.columns) %}
-  {{ return({
-    'ok': true,
-    'error': none,
-    'plan': {
-      'provider': connection_cfg.provider,
-      'connection': connection_cfg.alias,
-      'connection_id': connection_cfg.connection_id,
-      'schema': schema,
-      'table': table,
-      'policy': policy,
-      'body': sql_plan.body,
-      'decimal_option': folded.decimal_option,
-      'pushdown': sql_plan.pushdown,
-      'remote_sql': sql_plan.remote_sql,
-      'warnings': folded.warnings,
-      'columns': folded.columns,
-      'metadata_source': 'live'
-    }
-  }) }}
+  {{ return({'ok': true, 'error': none, 'plan': {
+    'provider': connection_cfg.provider,
+    'connection': connection_cfg.alias,
+    'connection_id': connection_cfg.connection_id,
+    'schema': schema,
+    'table': table,
+    'policy': policy,
+    'body': sql_plan.body,
+    'decimal_option': folded.decimal_option,
+    'query_execution_priority': connection_cfg.get('query_execution_priority'),
+    'pushdown': sql_plan.pushdown,
+    'remote_sql': sql_plan.remote_sql,
+    'warnings': folded.warnings,
+    'columns': folded.columns,
+    'metadata_source': 'live'
+  }}) }}
 {% endmacro %}
 
 {% macro _federation_try_plan_live(connection, table, schema=None, type_policy=None, overrides=None) %}
@@ -54,12 +51,5 @@
   {% if not discovered.ok %}
     {{ return({'ok': false, 'error': discovered.error, 'plan': none}) }}
   {% endif %}
-  {{ return(dbt_bigquery_federation._federation_try_plan_columns(
-    discovered.connection,
-    discovered.schema,
-    discovered.table,
-    discovered.columns,
-    type_policy,
-    overrides
-  )) }}
+  {{ return(dbt_bigquery_federation._federation_try_plan_columns(discovered.connection, discovered.schema, discovered.table, discovered.columns, type_policy, overrides)) }}
 {% endmacro %}

@@ -30,6 +30,7 @@
 {% macro test_provider_descriptors() %}
   {% set cloud_sql = dbt_bigquery_federation._federation_provider_descriptor('cloud_sql_postgres') %}
   {% set alloydb = dbt_bigquery_federation._federation_provider_descriptor('alloydb_postgres') %}
+  {% set spanner = dbt_bigquery_federation._federation_provider_descriptor('spanner_google_sql') %}
   {% do dbt_unittest.assert_equals(cloud_sql.dialect, 'postgres') %}
   {% do dbt_unittest.assert_equals(alloydb.dialect, 'postgres') %}
   {% do dbt_unittest.assert_equals(cloud_sql.type_profile, 'postgres_federation') %}
@@ -42,8 +43,10 @@
   ) %}
   {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_provider_is_supported('spanner_google_sql'),
-    false
+    true
   ) %}
+  {% do dbt_unittest.assert_equals(spanner.connection_kind, 'spanner') %}
+  {% do dbt_unittest.assert_equals(spanner.type_profile, 'spanner_google_federation') %}
 {% endmacro %}
 
 {% macro test_alloydb_connection_resolution() %}
