@@ -14,11 +14,14 @@ macros:
         description: Connection alias under vars.dbt_bigquery_federation.connections.
       - name: table
         type: string
-        description: Remote table name (unquoted if it matches ^[a-z_][a-z0-9_]*$).
+        description: >
+          Remote table name. Always PostgreSQL-quoted (double quotes; internal
+          quotes doubled).
       - name: schema
         type: string
         description: >
-          Remote schema. Defaults to the connection defaults.schema when omitted.
+          Remote schema. Always PostgreSQL-quoted. Defaults to the connection
+          defaults.schema when omitted.
       - name: type_policy
         type: string
         description: Optional policy override; safe or strict.
@@ -44,7 +47,8 @@ macros:
     description: >
       Plans a pinned relation and logs a conversion table (column, source type,
       target, action, lossiness, pushdown). Intended for dbt run-operation.
-      live=true is rejected in v0.1.
+      Optional type_policy and overrides follow live so inspect can mirror a
+      federated_relation invocation. live=true is rejected in v0.1.
     arguments:
       - name: connection
         type: string

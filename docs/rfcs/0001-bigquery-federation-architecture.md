@@ -96,7 +96,7 @@ The package should survive dbt's v1-to-v2/Fusion transition by relying on the db
 5. support connection / type / column overrides with one documented precedence ladder;
 6. compose with stock `view`, `table`, and `incremental` (the user owns `on_schema_change`; examples use `fail`);
 7. never call `run_query` from `federated_relation`;
-8. quote identifiers through the provider quoter and reject unsafe unquoted names;
+8. always quote identifiers through the provider quoter (PostgreSQL: double quotes, internal quotes doubled);
 9. keep public macros overridable via `adapter.dispatch(..., 'dbt_bigquery_federation')` → `default__*`;
 10. cover Core 1.10 and 1.11 with planner/parse tests that do **not** require GCP.
 
@@ -246,6 +246,21 @@ user_uuid   uuid              STRING       remote_cast     representation_change
 
 The operation also reports provider, connection alias, relation, policy, body class, and query-wide decimal option.
 
+Signature:
+
+```text
+federation_inspect(
+  connection,
+  schema,
+  table,
+  live=false,
+  type_policy=None,
+  overrides=None
+)
+```
+
+Optional `type_policy` and `overrides` follow `live` so inspect can mirror a `federated_relation` invocation. Positional `true` still means `live`.
+
 An optional `live=true` argument is reserved. v0.1 MUST error if `live` is true: live metadata is not implemented.
 
 Dropped from the v0.1 public surface: `get_remote_columns`, `federation_validate`, `federation_schema_diff`, `generate_federated_model`, `generate_federated_models`.
@@ -293,7 +308,7 @@ vars:
 ^projects/[^/]+/locations/[^/]+/connections/[^/]+$
 ```
 
-Document per-target `env_var` / target-scoped vars. Do not present a single production connection ID as the happy path.
+Different dbt targets MAY use different `env_var` names or target-scoped vars for `connection_id`. Do not treat a single production connection resource path as the only configuration.
 
 v0.1 provider key: `cloud_sql_postgres` only.
 
@@ -390,8 +405,10 @@ Column actions: `passthrough` | `remote_cast` | `fail`.
 Query plan:
 
 ```text
-(body: passthrough | projection) × (decimal_option: none | numeric | bignumeric)
+(body: passthrough | projection) × (decimal_option: none | bignumeric)
 ```
+
+Omitted options JSON means Google's default `default_type_for_decimal_columns=NUMERIC`. Never emit `"numeric"`. Emit `"bignumeric"` when **any** remaining native decimal needs `BIGNUMERIC`.
 
 These dimensions combine. A table with `jsonb` and mixed decimals may be **projection + no decimal option**. Stop treating exclusive A/B/C/D plans as the model.
 
@@ -408,20 +425,22 @@ Lossiness values: `exact` | `representation_change` | `unknown`.
 
 BigQuery `NUMERIC` is precision 38 / scale 9 (29 integer digits). `BIGNUMERIC` is precision 76 / scale 38.
 
-- All decimal columns have proven precision/scale that fit `NUMERIC` → passthrough body, `decimal_option=none`.
-- Else all fit `BIGNUMERIC` → passthrough body, `decimal_option=bignumeric`.
+- All decimal columns have proven precision/scale that fit `NUMERIC` → passthrough body, omit options JSON (`decimal_option=none`). Google's omitted-options default is `NUMERIC`. Never emit `"numeric"`.
+- Else all remaining native decimals fit `BIGNUMERIC` and at least one needs it → passthrough body when there are no remote casts, `decimal_option=bignumeric`.
 - Else under `safe`: remote-cast **only** the offenders to `text`; leave fitting decimals native; body becomes projection; warn that pushdown is lost. Under `strict`: fail the offenders.
+- After remote-casting unbounded offenders, remaining native decimals that mix NUMERIC-fit and BIGNUMERIC-fit take `decimal_option=bignumeric`. Widening NUMERIC-range values to `BIGNUMERIC` stays exact. The alternative (omit the option and remote-cast BIGNUMERIC-fit columns) would lose precision.
 - Null/absent precision or scale ⇒ unbounded ⇒ offender.
 - Never stringify a well-typed `numeric(12,2)` because a sibling unbounded `numeric` exists.
-- Do not apply a query-wide decimal option that would change types of columns that already fit `NUMERIC` unless **every** decimal in the query needs the wider option (the all-fit-BIGNUMERIC case).
 
 ### Known-unsupported PostgreSQL (v0.1 map)
 
-Remote-cast to `text` under `safe` (Google's unsupported list, plus common aliases): `uuid`, `jsonb`, `money`, `inet`, `cidr`, `macaddr`, `macaddr8`, `interval`, `time with time zone`, `timetz`, and geometric types (`point`, `line`, `lseg`, `box`, `path`, `polygon`, `circle`).
+Remote-cast to `text` under `safe` (Google's unsupported list, plus common aliases): `uuid`, `jsonb`, `money`, `inet`, `cidr`, `macaddr`, `macaddr8`, `interval`, `time with time zone`, `timetz`, `pg_lsn`, `tsquery`, `tsvector`, `txid_snapshot`, and geometric types (`point`, `line`, `lseg`, `box`, `path`, `polygon`, `circle`).
 
-`json` maps natively to BigQuery `STRING` — keep passthrough.
+Native mappings: `bit`, `bit varying`, and alias `varbit` map natively to BigQuery `BYTES`.
 
-Unknown extension types fail under both policies.
+`json` maps natively to BigQuery `STRING` — keep passthrough. Do not map `json` to BigQuery `JSON`.
+
+Arrays are `unknown` (not in Google's Cloud SQL `EXTERNAL_QUERY` map). Unknown types, including arrays and extension types, fail under both policies until an override acknowledges them.
 
 ## 14. Execution plans
 
@@ -430,23 +449,23 @@ Unknown extension types fail under both policies.
 ```sql
 EXTERNAL_QUERY(
   'projects/.../connections/...',
-  '''select * from public.orders'''
+  '''select * from "public"."orders"'''
 )
 ```
 
-Use when every pinned column can be mapped without a source expression and no query-wide option is required.
+Use when every pinned column can be mapped without a source expression and no query-wide option is required. Omitting the options JSON selects Google's `NUMERIC` default.
 
 ### Passthrough plus query-wide option
 
 ```sql
 EXTERNAL_QUERY(
   'projects/.../connections/...',
-  '''select * from public.orders''',
+  '''select * from "public"."orders"''',
   '{"default_type_for_decimal_columns":"bignumeric"}'
 )
 ```
 
-Use only when **all** decimals share one representable Google option and that option is required.
+Use when **any** remaining native decimal needs `BIGNUMERIC`, including a mix of NUMERIC-fit and BIGNUMERIC-fit siblings after offender casts. Never emit `"numeric"`.
 
 ### Projected remote normalization
 
@@ -455,19 +474,19 @@ EXTERNAL_QUERY(
   'projects/.../connections/...',
   '''
   select
-    id,
-    cast(user_uuid as text) as user_uuid,
-    amount,
-    cast(payload as text) as payload,
-    created_at
-  from public.orders
+    "id",
+    cast("user_uuid" as text) as "user_uuid",
+    "amount",
+    cast("payload" as text) as "payload",
+    "created_at"
+  from "public"."orders"
   '''
 )
 ```
 
 Use only when at least one column requires a remote expression. Inspect MUST report `pushdown=lost`.
 
-Google's limitation, verbatim: SQL pushdowns are only applied to federated queries of the form `SELECT * FROM T`. Any explicit remote column list, including an uncasted list, disables that path.
+Google's limitation, verbatim: SQL pushdowns are only applied to federated queries of the form `SELECT * FROM T`. Any explicit remote column list, including an uncasted list, disables that path. When that shape survives, BigQuery may prune columns and push filters. Filter literals are limited to the Google-listed types; `NUMERIC`, `BIGNUMERIC`, `TIME`, and `BYTES` are not among them.
 
 Two-stage BigQuery post-process is out of v0.1.
 
@@ -501,7 +520,7 @@ where updated_at > (
 {% endif %}
 ```
 
-When the plan is native `SELECT * FROM T`, BigQuery may push supported outer filters into Cloud SQL. When normalization requires source expressions, pushdown cannot be assumed.
+When the plan is native `SELECT * FROM T`, BigQuery may prune columns and push supported outer filters into Cloud SQL. Filter literals are the Google-listed types, not `NUMERIC` / `BIGNUMERIC` / `TIME` / `BYTES`. When normalization requires source expressions, pushdown cannot be assumed.
 
 ## 16. Why not ordinary dbt sources?
 
@@ -527,22 +546,27 @@ Out of v0.1. Existing Spanner external datasets should remain normal BigQuery re
 
 ### Locations
 
-The package SHOULD parse the connection location from canonical IDs. v0.1 does not fail compilation on target-location mismatch (the test target is Postgres). Document that query processing location must match the BigQuery connection location.
+The BigQuery query processing location SHOULD match the location encoded in the connection resource ID (`projects/.../locations/LOCATION/connections/...`). v0.1 does not fail compilation on a mismatch (the package test target is Postgres and has no BigQuery location). Operators must align locations in GCP; the compiler does not enforce it.
 
 ### Quotas and load
 
-Google documents cross-region federated-query quotas, a cap of 10 unique connections in one federated query, and that `maximum bytes billed` is not supported for federated queries. Documentation SHOULD recommend source workload isolation. v0.1 compile does not add compile-time federated load.
+Google documents:
+
+- at most 10 unique connections in one federated query;
+- a cross-region federated-query bytes quota;
+- `maximum bytes billed` is not supported for federated queries.
+
+Isolate Cloud SQL from federated load with a read replica. v0.1 compile does not add compile-time federated load and does not enforce these quotas.
 
 ### Credentials
 
-Package vars contain BigQuery connection resource IDs, not database passwords. The package cannot enforce read-only source identities and MUST say so.
+Package vars contain BigQuery connection resource IDs, not database passwords. The package stores connection IDs only and cannot enforce a read-only Cloud SQL user.
 
 ### SQL injection boundary
 
 High-level APIs MUST distinguish identifiers, typed literals, and trusted raw SQL.
 
-- Unquoted identifiers MUST match `^[a-z_][a-z0-9_]*$`.
-- Otherwise the provider `quote_identifier` implementation is used (PostgreSQL: double quotes, internal quotes doubled).
+- Identifiers are **always** PostgreSQL-quoted: double quotes, with internal double quotes doubled. There is no unquoted-if-safe path in v0.1 (no `^[a-z_][a-z0-9_]*$` exception).
 - High-level APIs never concatenate raw SQL fragments from the user.
 - `external_query` is documented as: the dbt identity executes this string on the remote DB.
 
@@ -553,7 +577,7 @@ Compiled SQL will contain connection resource names and remote schema/table name
 ## 19. Performance principles
 
 1. Preserve `SELECT * FROM T` whenever correct.
-2. Prefer query-wide decimal options over per-column casts when they satisfy policy for **all** decimals.
+2. Prefer a query-wide `bignumeric` option over per-column casts when remaining native decimals need it, including a mix of NUMERIC-fit and BIGNUMERIC-fit siblings after offender casts. Never emit `"numeric"`.
 3. Do not query `information_schema` at compile time in v0.1.
 4. Do not promise metadata caching.
 5. Benchmark source load and bytes transferred in a later RFC that has GCP E2E; v0.1 does not claim runtime performance numbers.
@@ -597,12 +621,13 @@ Feed pinned column fixtures into the planner and assert plans/SQL **strings**. N
 
 Required cases:
 
-- all-native → `select * from <rel>` and no options JSON;
+- all-native → `select * from "<schema>"."<table>"` and no options JSON;
 - `uuid` / `jsonb` under `safe` → projection with `cast(... as text)`;
 - `uuid` under `strict` → error unless override;
 - unknown extension type → error;
 - all `numeric(12,2)` → passthrough, no option;
 - mix `numeric(12,2)` + unbounded `numeric` under `safe` → projection only on the unbounded column; fitting column uncast; pushdown lost;
+- remaining native decimals that mix NUMERIC-fit and BIGNUMERIC-fit after offender casts → `decimal_option=bignumeric`; never emit `"numeric"`;
 - same mix under `strict` → error;
 - type override for uuid → remote_cast;
 - missing pin → error;
