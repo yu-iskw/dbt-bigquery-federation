@@ -23,6 +23,7 @@
 {% endmacro %}
 
 {% macro test_plan_uuid_strict_errors() %}
+  {# Package type_overrides.UUID covers user_uuid; jsonb payload is the first strict failure. #}
   {% set result = dbt_bigquery_federation._federation_try_plan(
     'application_pg',
     'users',
@@ -30,6 +31,13 @@
     'strict'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
+  {% do dbt_unittest.assert_equals('cloud_sql_postgres' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('users' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('payload' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('jsonb' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('strict' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('type_overrides' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('pin strategy' in result.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_unknown_type_errors() %}
@@ -39,6 +47,12 @@
     'public'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
+  {% do dbt_unittest.assert_equals('cloud_sql_postgres' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('mystery' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('payload' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('citext' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('type_overrides' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('pin strategy' in result.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_bounded_numeric_passthrough() %}
@@ -88,7 +102,11 @@
     'strict'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
+  {% do dbt_unittest.assert_equals('cloud_sql_postgres' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('mixed_decimals' in result.error, true) %}
   {% do dbt_unittest.assert_equals('ratio' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('strict' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('override' in result.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_mixed_bignumeric_and_unbounded_keeps_option() %}
@@ -173,8 +191,12 @@
     'strict'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
+  {% do dbt_unittest.assert_equals('cloud_sql_postgres' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('mixed_remaining_decimals' in result.error, true) %}
   {% do dbt_unittest.assert_equals('ratio' in result.error, true) %}
   {% do dbt_unittest.assert_equals('unbounded' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('strict' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('override' in result.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_uuid_override_remote_cast() %}
@@ -195,6 +217,8 @@
 {% macro test_plan_missing_pin_errors() %}
   {% set result = dbt_bigquery_federation._federation_try_plan('application_pg', 'does_not_exist', 'public') %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
+  {% do dbt_unittest.assert_equals('application_pg' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('application_pg.public.does_not_exist' in result.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_type_overrides_money_under_strict() %}
@@ -280,7 +304,9 @@
   {% set safe = dbt_bigquery_federation._federation_try_plan('application_pg', 'int_array', 'public') %}
   {% do dbt_unittest.assert_equals(safe.ok, false) %}
   {% do dbt_unittest.assert_equals('unknown type' in safe.error, true) %}
-  {% do dbt_unittest.assert_equals('type override' in safe.error, true) %}
+  {% do dbt_unittest.assert_equals('integer[]' in safe.error, true) %}
+  {% do dbt_unittest.assert_equals('type_overrides' in safe.error, true) %}
+  {% do dbt_unittest.assert_equals('pin strategy' in safe.error, true) %}
   {% set strict = dbt_bigquery_federation._federation_try_plan(
     'application_pg',
     'int_array',
@@ -289,7 +315,9 @@
   ) %}
   {% do dbt_unittest.assert_equals(strict.ok, false) %}
   {% do dbt_unittest.assert_equals('unknown type' in strict.error, true) %}
-  {% do dbt_unittest.assert_equals('type override' in strict.error, true) %}
+  {% do dbt_unittest.assert_equals('integer[]' in strict.error, true) %}
+  {% do dbt_unittest.assert_equals('type_overrides' in strict.error, true) %}
+  {% do dbt_unittest.assert_equals('pin strategy' in strict.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_json_native_passthrough() %}

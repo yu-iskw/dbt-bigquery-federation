@@ -58,3 +58,10 @@ macros:
       - name: live
         type: boolean
         description: Reserved. Must be false in v0.1.
+      - name: type_policy
+        type: string
+        description: Optional policy override; safe or strict.
+      - name: overrides
+        type: dict
+        description: >
+          Optional mapping of column name to {strategy, remote_type, target_type}.

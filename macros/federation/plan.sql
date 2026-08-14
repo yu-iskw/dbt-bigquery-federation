@@ -124,7 +124,7 @@
     {% if policy == 'strict' %}
       {{ return({
         'ok': false,
-        'error': 'Column ' ~ name ~ ' has unsupported type ' ~ entry.data_type ~ ' under strict policy. Add a type_overrides or column override with strategy=remote_cast.',
+        'error': 'Column ' ~ name ~ ' has unsupported type ' ~ (data_type | string) ~ ' under ' ~ policy ~ ' policy. Add type_overrides or pin strategy.',
         'classified': none
       }) }}
     {% endif %}
@@ -134,7 +134,7 @@
   {% endif %}
   {{ return({
     'ok': false,
-    'error': 'Column ' ~ name ~ ' has unknown type ' ~ entry.data_type ~ ' under ' ~ policy ~ ' policy. Add a type override or pin strategy.',
+    'error': 'Column ' ~ name ~ ' has unknown type ' ~ (data_type | string) ~ ' under ' ~ policy ~ ' policy. Add type_overrides or pin strategy.',
     'classified': none
   }) }}
 {% endmacro %}

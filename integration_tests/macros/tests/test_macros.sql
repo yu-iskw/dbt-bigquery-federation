@@ -28,4 +28,6 @@
   {% do test_plan_unsafe_remote_type_errors() %}
   {% do test_federated_relation_renders_passthrough() %}
   {% do test_federation_inspect_reports_pushdown() %}
+  {% do test_federation_inspect_strict_requires_overrides() %}
+  {% do test_federation_inspect_missing_pin_and_unknown_type_errors() %}
 {% endmacro %}

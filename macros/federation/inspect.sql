@@ -1,9 +1,9 @@
-{% macro federation_inspect(connection, schema, table, live=false) -%}
-  {{ return(adapter.dispatch('federation_inspect', 'dbt_bigquery_federation')(connection, schema, table, live)) }}
+{% macro federation_inspect(connection, schema, table, live=false, type_policy=None, overrides=None) -%}
+  {{ return(adapter.dispatch('federation_inspect', 'dbt_bigquery_federation')(connection, schema, table, live, type_policy, overrides)) }}
 {%- endmacro %}
 
-{% macro default__federation_inspect(connection, schema, table, live=false) -%}
-  {% set result = dbt_bigquery_federation._federation_inspect_result(connection, schema, table, live) %}
+{% macro default__federation_inspect(connection, schema, table, live=false, type_policy=None, overrides=None) -%}
+  {% set result = dbt_bigquery_federation._federation_inspect_result(connection, schema, table, live, type_policy, overrides) %}
   {% if not result.ok %}
     {{ exceptions.raise_compiler_error(result.error) }}
   {% endif %}
@@ -11,7 +11,7 @@
   {{ return(result.report) }}
 {%- endmacro %}
 
-{% macro _federation_inspect_result(connection, schema, table, live=false) %}
+{% macro _federation_inspect_result(connection, schema, table, live=false, type_policy=None, overrides=None) %}
   {% if live %}
     {{ return({
       'ok': false,
@@ -20,7 +20,7 @@
       'plan': none
     }) }}
   {% endif %}
-  {% set planned = dbt_bigquery_federation._federation_try_plan(connection, table, schema) %}
+  {% set planned = dbt_bigquery_federation._federation_try_plan(connection, table, schema, type_policy, overrides) %}
   {% if not planned.ok %}
     {{ return({'ok': false, 'error': planned.error, 'report': none, 'plan': none}) }}
   {% endif %}
