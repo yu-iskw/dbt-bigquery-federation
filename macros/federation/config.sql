@@ -10,7 +10,7 @@
   {% if connection_id is none %}
     {{ return(false) }}
   {% endif %}
-  {% set matched = modules.re.match('^projects/[^/\\s]+/locations/[^/\\s]+/connections/[^/\\s]+\\Z', connection_id | string | trim) %}
+  {% set matched = modules.re.match('^projects/[^/\\s]+/locations/[^/\\s]+/connections/[^/\\s]+$', connection_id | string | trim) %}
   {{ return(matched is not none) }}
 {% endmacro %}
 
