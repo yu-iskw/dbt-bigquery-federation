@@ -1,7 +1,7 @@
 [project]
 name = "integration-tests"
 version = "0.1.0"
-description = "Integration tests for dbt-package-template"
+description = "Integration tests for dbt_bigquery_federation"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -14,12 +14,10 @@ dbt-fusion = []
 dbt-core-1-10 = [
     "dbt-core>=1.10,<1.11",
     "dbt-postgres>=1.10,<1.11",
-    "dbt-duckdb>=1.10,<1.11",
 ]
 dbt-core-1-11 = [
     "dbt-core>=1.11,<1.12",
     "dbt-postgres>=1.10,<1.11",
-    "dbt-duckdb>=1.10,<1.11",
 ]
 
 [tool.uv]

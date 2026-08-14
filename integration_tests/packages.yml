@@ -1,4 +1,4 @@
 packages:
   - local: ../
-  - package: yu-iskw/dbt_unittest
-    version: 0.5.0
+  - git: "https://github.com/yu-iskw/dbt-unittest.git"
+    revision: "0.5.0"

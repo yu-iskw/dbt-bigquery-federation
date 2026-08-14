@@ -1,7 +1,7 @@
 [project]
-name = "dbt-package-template"
+name = "dbt-bigquery-federation"
 version = "0.1.0"
-description = "Add your description here"
+description = "dbt macros for pinned BigQuery EXTERNAL_QUERY federation"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []

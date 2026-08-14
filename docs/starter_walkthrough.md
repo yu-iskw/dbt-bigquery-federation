@@ -1,21 +1,18 @@
-# Starter Walkthrough
+# Package walkthrough
 
-This template ships with one example macro and one example integration model so new package authors can start from a working baseline.
+This package ships pinned BigQuery `EXTERNAL_QUERY` macros and a GCP-free test harness.
 
-## Starter macro
+## Public macros
 
-The package macro lives at `macros/example/normalize_text.sql`.
+- `macros/federated_relation.sql` — table-expression planner
+- `macros/external_query.sql` — trusted raw SQL hatch
+- `macros/federation/inspect.sql` — `federation_inspect`
 
-It returns a SQL expression that:
-
-- casts the input to the adapter string type
-- lowercases the value
-- trims surrounding whitespace
-- converts empty strings to `null`
+Internals live under `macros/federation/`. See [`macros/CLAUDE.md`](../macros/CLAUDE.md) and [RFC-0001](rfcs/0001-bigquery-federation-architecture.md).
 
 ## Unit tests
 
-Macro unit tests live under `integration_tests/macros/tests/`, **mirroring** the package macro tree (for example `macros/example/normalize_text.sql` pairs with `integration_tests/macros/tests/example/test_normalize_text.sql`). The `dbt run-operation` entry macro stays at `integration_tests/macros/tests/test_macros.sql`.
+Macro unit tests live under `integration_tests/macros/tests/`, **mirroring** the package macro tree. The `dbt run-operation` entry macro stays at `integration_tests/macros/tests/test_macros.sql`.
 
 The test runner:
 
@@ -23,17 +20,13 @@ The test runner:
 2. runs `dbt deps`
 3. executes `dbt run-operation test_macros`
 
-The starter unit tests demonstrate how to:
-
-- evaluate a macro with literal input
-- execute SQL against the target adapter
-- fail fast with custom assertion helpers
+Planner tests assert rendered SQL strings. They do not execute `EXTERNAL_QUERY`.
 
 ## Integration tests
 
-The example project uses the seed in `integration_tests/data/raw_users.csv` and the model in `integration_tests/models/example/stg_users.sql`.
+Non-federated smoke: seed `integration_tests/data/raw_users.csv` and model `integration_tests/models/example/stg_users.sql` (`dbt build --exclude federation`).
 
-Run the full local test flow from the repository root:
+Federated compile smoke: `integration_tests/models/federation/stg_federated_orders.sql` (`dbt compile --select federation`).
 
 ```bash
 make setup-integration-tests
@@ -41,7 +34,6 @@ make run-unit-tests
 make run-integration-tests
 ```
 
-The integration suite executes on:
+The required suite executes on:
 
-- `postgres`
-- `duckdb`
+- `postgres` (Jinja engine)

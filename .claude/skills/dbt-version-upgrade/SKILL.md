@@ -11,7 +11,7 @@ Bump or drop a dbt-core version across all four locations where it is pinned.
 
 | File | What to update |
 | --- | --- |
-| `integration_tests/pyproject.toml` | Add/remove a `[dependency-groups.dbt-core-X-Y]` section with `dbt-core`, `dbt-postgres`, `dbt-duckdb` pins |
+| `integration_tests/pyproject.toml` | Add/remove a `[dependency-groups.dbt-core-X-Y]` section with `dbt-core` and `dbt-postgres` pins |
 | `integration_tests/noxfile_core.py` | Add/remove the uv group from `LOCAL_DBT_GROUPS` / `SETUP_DBT_GROUPS` and `@nox.parametrize`; check `dev_*` sessions still point to a valid group |
 | `.github/workflows/integration-tests.yml` | Add/remove the version from the `uv-group` matrix axis |
 | `dbt_project.yml` | Update `require-dbt-version` bounds if the new version is outside the current range |
@@ -21,7 +21,7 @@ Bump or drop a dbt-core version across all four locations where it is pinned.
 ### 1. Confirm the target version
 
 Ask the user (or read from their prompt):
-- **Adding** version X.Y? → need exact patch pin for `dbt-core`, `dbt-postgres`, `dbt-duckdb` (check PyPI).
+- **Adding** version X.Y? → need exact patch pin for `dbt-core` and `dbt-postgres` (check PyPI).
 - **Dropping** version X.Y? → remove its group and all matrix references.
 
 ### 2. Update `integration_tests/pyproject.toml`
@@ -32,7 +32,6 @@ Ask the user (or read from their prompt):
 dependencies = [
   "dbt-core>=X.Y.0,<X.Z.0",
   "dbt-postgres>=X.Y.0,<X.Z.0",
-  "dbt-duckdb>=X.Y.0,<X.Z.0",
 ]
 # Add conflict markers if needed:
 # conflicts = [
