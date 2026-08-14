@@ -1,0 +1,50 @@
+name: Upgrade Trunk
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Runs 1st of every month
+    - cron: 0 0 1 * *
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  trunk_upgrade:
+    name: Upgrade Trunk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # For trunk to create PRs
+      pull-requests: write # For trunk to create PRs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      # >>> Install your own deps here (npm install, etc) <<<
+      # SEE https://github.com/trunk-io/trunk-action
+      - name: Trunk Upgrade
+        uses: trunk-io/trunk-action/upgrade@75699af9e26881e564e9d832ef7dc3af25ec031b # v1.2.4
+        with:
+          signoff: true
+      - name: Label and draft Trunk upgrade PRs
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDENCY_AUTOMATION_PAT || secrets.GH_AW_CI_TRIGGER_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          numbers="$(gh pr list --state open --json number,headRefName --jq '.[] | select(.headRefName | test("trunk"; "i")) | .number')"
+          if [ -z "${numbers}" ]; then
+            echo "No open Trunk upgrade PRs"
+            exit 0
+          fi
+          echo "${numbers}" | while read -r n; do
+            gh pr edit "${n}" --add-label automation --add-label deps --add-label security
+            gh pr ready "${n}" --undo || true
+          done
