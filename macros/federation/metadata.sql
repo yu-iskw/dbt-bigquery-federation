@@ -25,7 +25,8 @@
 
 {% macro _federation_metadata_query_sql(connection_cfg, schema, table) %}
   {% set remote_sql = dbt_bigquery_federation._federation_provider_metadata_remote_sql(connection_cfg.provider, schema, table) %}
-  {% set external = dbt_bigquery_federation._federation_render_external_query(connection_cfg.connection_id, remote_sql, none, connection_cfg.get('query_execution_priority')) %}
+  {% set metadata_connection_id = connection_cfg.get('metadata_connection_id', connection_cfg.connection_id) %}
+  {% set external = dbt_bigquery_federation._federation_render_external_query(metadata_connection_id, remote_sql, none, connection_cfg.get('query_execution_priority')) %}
   {{ return('select * from ' ~ external) }}
 {% endmacro %}
 
