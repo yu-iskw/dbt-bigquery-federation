@@ -138,3 +138,98 @@
   {% set dup = dbt_bigquery_federation._federation_try_plan('application_pg', 'duplicates', 'public') %}
   {% do dbt_unittest.assert_equals(dup.ok, false) %}
 {% endmacro %}
+
+{% macro test_plan_bit_native_passthrough() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan('application_pg', 'bits', 'public') %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select * from "public"."bits"'
+  ) %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].name, 'flags') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].source_type, 'bit') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].target_type, 'BYTES') %}
+{% endmacro %}
+
+{% macro test_plan_varbit_and_bit_typmod_native_passthrough() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan('application_pg', 'bits', 'public') %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].name, 'packed') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].source_type, 'bit varying') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].target_type, 'BYTES') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[2].name, 'masked') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[2].source_type, 'bit') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[2].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[2].target_type, 'BYTES') %}
+{% endmacro %}
+
+{% macro test_plan_pg_lsn_safe_remote_cast() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan('application_pg', 'pg_lsn_types', 'public') %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].remote_type, 'text') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].target_type, 'STRING') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select cast("lsn" as text) as "lsn" from "public"."pg_lsn_types"'
+  ) %}
+{% endmacro %}
+
+{% macro test_plan_search_types_safe_remote_cast() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan('application_pg', 'search_types', 'public') %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].remote_type, 'text') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].remote_type, 'text') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[2].action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[2].remote_type, 'text') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select cast("query" as text) as "query", cast("vector" as text) as "vector", cast("snapshot" as text) as "snapshot" from "public"."search_types"'
+  ) %}
+{% endmacro %}
+
+{% macro test_plan_integer_array_unknown_errors() %}
+  {% set safe = dbt_bigquery_federation._federation_try_plan('application_pg', 'int_array', 'public') %}
+  {% do dbt_unittest.assert_equals(safe.ok, false) %}
+  {% do dbt_unittest.assert_equals('unknown type' in safe.error, true) %}
+  {% do dbt_unittest.assert_equals('type override' in safe.error, true) %}
+  {% set strict = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'int_array',
+    'public',
+    'strict'
+  ) %}
+  {% do dbt_unittest.assert_equals(strict.ok, false) %}
+  {% do dbt_unittest.assert_equals('unknown type' in strict.error, true) %}
+  {% do dbt_unittest.assert_equals('type override' in strict.error, true) %}
+{% endmacro %}
+
+{% macro test_plan_json_native_passthrough() %}
+  {% set native = dbt_bigquery_federation._federation_try_plan('application_pg', 'json_native', 'public') %}
+  {% do dbt_unittest.assert_equals(native.ok, true) %}
+  {% do dbt_unittest.assert_equals(native.plan.body, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(native.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(native.plan.columns[0].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(native.plan.columns[0].target_type, 'STRING') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(native.plan.remote_sql),
+    'select * from "public"."json_native"'
+  ) %}
+  {% set jsonb_pin = dbt_bigquery_federation._federation_try_plan('application_pg', 'users', 'public') %}
+  {% do dbt_unittest.assert_equals(jsonb_pin.ok, true) %}
+  {% do dbt_unittest.assert_equals(jsonb_pin.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(jsonb_pin.plan.columns[2].name, 'payload') %}
+  {% do dbt_unittest.assert_equals(jsonb_pin.plan.columns[2].source_type, 'jsonb') %}
+  {% do dbt_unittest.assert_equals(jsonb_pin.plan.columns[2].action, 'remote_cast') %}
+{% endmacro %}

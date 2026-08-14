@@ -30,12 +30,19 @@
     'timestamptz': 'timestamp with time zone',
     'timetz': 'time with time zone',
     'decimal': 'numeric',
-    'timestamp': 'timestamp without time zone'
+    'timestamp': 'timestamp without time zone',
+    'varbit': 'bit varying'
   } %}
-  {% if normalized in aliases %}
-    {{ return(aliases[normalized]) }}
+  {# Leave numeric/decimal typmods intact; parameterized decimals are pin-authoring errors. #}
+  {% set numeric_typmod = modules.re.match('^(numeric|decimal)\\s*\\(', normalized) %}
+  {% if numeric_typmod is not none %}
+    {{ return(normalized) }}
   {% endif %}
-  {{ return(normalized) }}
+  {% set stripped = modules.re.sub('\\s*\\([^)]*\\)$', '', normalized) %}
+  {% if stripped in aliases %}
+    {{ return(aliases[stripped]) }}
+  {% endif %}
+  {{ return(stripped) }}
 {% endmacro %}
 
 {% macro _cloud_sql_postgres_type_map() %}
@@ -58,6 +65,8 @@
     'time without time zone': {'kind': 'native', 'target': 'TIME', 'lossiness': 'exact'},
     'json': {'kind': 'native', 'target': 'STRING', 'lossiness': 'representation_change'},
     'xml': {'kind': 'native', 'target': 'STRING', 'lossiness': 'representation_change'},
+    'bit': {'kind': 'native', 'target': 'BYTES', 'lossiness': 'exact'},
+    'bit varying': {'kind': 'native', 'target': 'BYTES', 'lossiness': 'exact'},
     'numeric': {'kind': 'decimal', 'target': 'NUMERIC', 'lossiness': 'exact'}
   } %}
   {% set unsupported = {
@@ -68,7 +77,8 @@
   } %}
   {% for name in [
     'uuid', 'jsonb', 'money', 'inet', 'cidr', 'macaddr', 'macaddr8', 'interval',
-    'time with time zone', 'point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle'
+    'time with time zone', 'point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle',
+    'pg_lsn', 'tsquery', 'tsvector', 'txid_snapshot'
   ] %}
     {% do type_map.update({name: unsupported}) %}
   {% endfor %}

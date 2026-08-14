@@ -93,6 +93,34 @@ vars:
             data_type: bigint
           - name: id
             data_type: text
+      application_pg.public.bits:
+        columns:
+          - name: flags
+            data_type: bit
+          - name: packed
+            data_type: varbit
+          - name: masked
+            data_type: bit(8)
+      application_pg.public.pg_lsn_types:
+        columns:
+          - name: lsn
+            data_type: pg_lsn
+      application_pg.public.search_types:
+        columns:
+          - name: query
+            data_type: tsquery
+          - name: vector
+            data_type: tsvector
+          - name: snapshot
+            data_type: txid_snapshot
+      application_pg.public.int_array:
+        columns:
+          - name: data
+            data_type: integer[]
+      application_pg.public.json_native:
+        columns:
+          - name: payload
+            data_type: json
     type_overrides:
       money:
         strategy: remote_cast
