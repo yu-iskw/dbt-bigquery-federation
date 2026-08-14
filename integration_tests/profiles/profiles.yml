@@ -12,9 +12,10 @@ default:
       threads: "{{ env_var('DBT_THREADS', '4') | as_number }}"
     bigquery:
       type: bigquery
-      # The emulator does not validate OAuth bearer tokens. oauth-secrets lets
-      # dbt-bigquery construct credentials without ADC while api_endpoint routes
-      # the official google-cloud-bigquery client to the local emulator.
+      # dbt-bigquery exposes api_endpoint as a first-class credential field. The
+      # emulator ignores bearer-token authentication, so oauth-secrets with a
+      # fixed dummy token avoids ADC while keeping dbt-bigquery's normal client
+      # construction path (no monkey-patching of the adapter/client is needed).
       method: oauth-secrets
       token: "{{ env_var('DBT_BIGQUERY_TOKEN', 'bigquery-emulator') }}"
       project: "{{ env_var('DBT_BIGQUERY_PROJECT', 'dbt-bigquery-federation-ci') }}"
