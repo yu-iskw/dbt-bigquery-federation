@@ -17,24 +17,35 @@ done
 
 DBT_CMD="${DBT_CMD:-dbt}"
 
-# Credential-free dbt-bigquery compatibility is intentionally limited to parse.
-# Both `dbt compile` and `dbt run-operation` initialize a BigQuery connection and
-# therefore require Application Default Credentials. Authenticated compilation,
-# macro execution, live discovery, and federation execution belong in the GCP E2E
-# suite instead of this always-on PR lane.
+# The profile routes dbt-bigquery's official google-cloud-bigquery client to
+# bigquery-emulator using api_endpoint and a dummy OAuth bearer token. No ADC or
+# Google Cloud project is required.
+"${DBT_CMD}" debug --profiles-dir profiles --target "${TARGET}"
 "${DBT_CMD}" parse --profiles-dir profiles --target "${TARGET}"
 
-# Validate that parsing produced a manifest and that the package/public federation
-# surface is present. This catches adapter installation/profile/macro parsing
-# regressions without pretending to exercise warehouse-backed execution.
+# Compile pinned federation models through the actual BigQuery adapter. This is
+# the boundary that could not be exercised in credential-free CI before the
+# emulator was introduced. The generated EXTERNAL_QUERY is not executed here;
+# real federation remains the responsibility of authenticated GCP E2E tests.
+"${DBT_CMD}" compile \
+  --profiles-dir profiles \
+  --target "${TARGET}" \
+  --select stg_federated_orders stg_federated_orders_table
+
+for model in stg_federated_orders stg_federated_orders_table; do
+  compiled="target/compiled/dbt_bigquery_federation_integration_tests/models/federation/${model}.sql"
+  test -f "${compiled}"
+  grep -q "EXTERNAL_QUERY" "${compiled}"
+  grep -q "projects/example/locations/us/connections/application-pg" "${compiled}"
+done
+
 test -f target/manifest.json
 python - <<'PY'
 import json
 from pathlib import Path
 
 manifest = json.loads(Path("target/manifest.json").read_text())
-macros = manifest.get("macros", {})
-macro_names = {node.get("name") for node in macros.values()}
+macro_names = {node.get("name") for node in manifest.get("macros", {}).values()}
 required = {
     "federated_relation",
     "external_query",
@@ -47,19 +58,4 @@ required = {
 missing = sorted(required - macro_names)
 if missing:
     raise SystemExit(f"Missing expected federation macros in manifest: {missing}")
-
-models = manifest.get("nodes", {})
-model_names = {
-    node.get("name")
-    for node in models.values()
-    if node.get("resource_type") == "model"
-}
-required_models = {
-    "stg_federated_orders",
-    "stg_federated_orders_table",
-    "stg_federated_orders_incremental",
-}
-missing_models = sorted(required_models - model_names)
-if missing_models:
-    raise SystemExit(f"Missing expected federation models in manifest: {missing_models}")
 PY
