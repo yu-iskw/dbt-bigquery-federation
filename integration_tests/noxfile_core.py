@@ -53,8 +53,8 @@ def integration_tests(session, uv_group, adapter):
 
 @nox.session(python="3.12")
 @nox.parametrize("uv_group", BIGQUERY_DBT_GROUPS)
-def bigquery_parse_tests(session, uv_group):
-    """Parse the project with dbt-bigquery without requiring GCP credentials."""
+def bigquery_emulator_tests(session, uv_group):
+    """Exercise dbt-bigquery against the local bigquery-emulator endpoint."""
     install_dependencies(session, uv_group)
     dbt_cmd = get_dbt_command(session, uv_group)
     env = build_env(session, uv_group, "bigquery", dbt_cmd)
