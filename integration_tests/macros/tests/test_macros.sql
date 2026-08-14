@@ -2,12 +2,14 @@
   {% do test_connection_id_validation() %}
   {% do test_provider_descriptors() %}
   {% do test_alloydb_connection_resolution() %}
+  {% do test_spanner_metadata_connection_resolution() %}
   {% do test_quote_safe_and_mixed_case_identifiers() %}
   {% do test_quote_literal_doubles_single_quotes() %}
   {% do test_external_query_renders_without_planning() %}
   {% do test_postgres_metadata_remote_sql() %}
   {% do test_alloydb_metadata_uses_postgres_profile() %}
   {% do test_metadata_external_query_wrapper() %}
+  {% do test_spanner_metadata_uses_dedicated_connection() %}
   {% do test_metadata_mode_auto_prefers_pin() %}
   {% do test_metadata_mode_live_is_explicit() %}
   {% do test_metadata_mode_auto_uses_live_without_pin() %}
