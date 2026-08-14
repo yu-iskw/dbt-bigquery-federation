@@ -19,6 +19,13 @@
   {% do dbt_unittest.assert_equals(diff.changed[0].name, 'amount') %}
 {% endmacro %}
 
+{% macro test_schema_diff_user_defined_udt_matches_pin_type() %}
+  {% set pinned = [{'name': 'user_uuid', 'data_type': 'uuid', 'precision': none, 'scale': none}] %}
+  {% set live = [{'name': 'user_uuid', 'data_type': 'USER-DEFINED', 'udt_name': 'uuid', 'precision': none, 'scale': none}] %}
+  {% set diff = dbt_bigquery_federation._federation_schema_diff_columns(pinned, live) %}
+  {% do dbt_unittest.assert_equals(diff.has_changes, false) %}
+{% endmacro %}
+
 {% macro test_schema_diff_no_changes() %}
   {% set columns = [
     {'name': 'id', 'data_type': 'bigint', 'precision': none, 'scale': none},

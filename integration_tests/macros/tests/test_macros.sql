@@ -17,6 +17,7 @@
   {% do test_live_parse_stub_is_passthrough() %}
   {% do test_schema_diff_detects_add_remove_change() %}
   {% do test_schema_diff_no_changes() %}
+  {% do test_schema_diff_user_defined_udt_matches_pin_type() %}
   {% do test_schema_diff_report_includes_precision_scale() %}
   {% do test_yaml_double_quoted_escapes_special_characters() %}
   {% do test_plan_all_native_passthrough() %}
@@ -42,6 +43,7 @@
   {% do test_plan_numeric_typmod_errors_with_precision_scale_hint() %}
   {% do test_plan_unsafe_remote_type_errors() %}
   {% do test_plan_user_defined_udt_name_classifies_uuid() %}
+  {% do test_plan_array_udt_name_does_not_replace_data_type() %}
   {% do test_alloydb_postgres_plan_uses_shared_profile() %}
   {% do test_alloydb_postgres_router_matches_postgres_dialect() %}
   {% do test_alloydb_postgres_live_plan_conformance() %}

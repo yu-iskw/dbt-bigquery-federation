@@ -68,7 +68,7 @@
 {% macro _federation_column_declared_type(column) %}
   {% set data_type = column.get('data_type') %}
   {% set udt_name = column.get('udt_name') %}
-  {% if udt_name is not none and (data_type | string | lower | trim) in ['user-defined', 'array'] %}
+  {% if udt_name is not none and (data_type | string | lower | trim) == 'user-defined' %}
     {{ return(udt_name) }}
   {% endif %}
   {{ return(data_type) }}

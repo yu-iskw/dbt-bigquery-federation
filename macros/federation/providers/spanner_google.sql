@@ -6,15 +6,7 @@
 {% endmacro %}
 
 {% macro _spanner_google_federation_quote_literal(value) %}
-  {% set text = value | string %}
-  {% set escaped = text
-    | replace('\\', '\\\\')
-    | replace("'", "\\'")
-    | replace('\n', '\\n')
-    | replace('\r', '\\r')
-    | replace('\t', '\\t')
-  %}
-  {{ return("'" ~ escaped ~ "'") }}
+  {{ return(dbt_bigquery_federation._federation_quote_bq_string(value)) }}
 {% endmacro %}
 
 {% macro _spanner_google_federation_normalize_type_name(data_type) %}
