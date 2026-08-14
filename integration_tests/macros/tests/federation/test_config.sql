@@ -16,6 +16,10 @@
     true
   ) %}
   {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_connection_id_is_valid('projects/example/locations/us/connections/application pg'),
+    false
+  ) %}
+  {% do dbt_unittest.assert_equals(
     dbt_bigquery_federation._federation_connection_id_is_valid('projects/example/locations/us/connections/application-pg /oops'),
     false
   ) %}

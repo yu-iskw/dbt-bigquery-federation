@@ -1,6 +1,13 @@
 {% macro _federation_quote_bq_string(value) %}
   {% set text = value | string %}
-  {{ return("'" ~ (text | replace('\\', '\\\\') | replace("'", "\\'")) ~ "'") }}
+  {% set escaped = text
+    | replace('\\', '\\\\')
+    | replace("'", "\\'")
+    | replace('\r', '\\r')
+    | replace('\n', '\\n')
+    | replace('\t', '\\t')
+  %}
+  {{ return("'" ~ escaped ~ "'") }}
 {% endmacro %}
 
 {% macro _render_external_query(connection_id, remote_sql, decimal_option=None) %}

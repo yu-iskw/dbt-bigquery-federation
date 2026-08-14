@@ -50,7 +50,11 @@
     {% if col is not mapping %}
       {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' column entries must be mappings', 'pin': none, 'connection': none}) }}
     {% endif %}
-    {% set col_name = col.get('name') | string | trim %}
+    {% set raw_name = col.get('name') %}
+    {% if raw_name is none %}
+      {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' has a column with an empty name', 'pin': none, 'connection': none}) }}
+    {% endif %}
+    {% set col_name = raw_name | string | trim %}
     {% if not col_name %}
       {{ return({'ok': false, 'error': 'Pin ' ~ key ~ ' has a column with an empty name', 'pin': none, 'connection': none}) }}
     {% endif %}
