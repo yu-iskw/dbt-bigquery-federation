@@ -10,5 +10,5 @@
   {% for warning in result.plan.warnings %}
     {% do exceptions.warn(warning) %}
   {% endfor %}
-  {{ return(dbt_bigquery_federation._render_external_query(result.plan.connection_id, result.plan.remote_sql, result.plan.decimal_option)) }}
+  {{ return(dbt_bigquery_federation._federation_render_external_query(result.plan.connection_id, result.plan.remote_sql, result.plan.decimal_option)) }}
 {%- endmacro %}

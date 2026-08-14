@@ -10,7 +10,7 @@
   {{ return("'" ~ escaped ~ "'") }}
 {% endmacro %}
 
-{% macro _render_external_query(connection_id, remote_sql, decimal_option=None) %}
+{% macro _federation_render_external_query(connection_id, remote_sql, decimal_option=None) %}
   {% if connection_id is none or remote_sql is none %}
     {{ exceptions.raise_compiler_error('EXTERNAL_QUERY renderer requires connection_id and remote SQL') }}
   {% endif %}
