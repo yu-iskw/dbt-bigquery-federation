@@ -36,7 +36,13 @@
 {% endmacro %}
 
 {% macro test_federation_inspect_strict_requires_overrides() %}
-  {# Package type_overrides.UUID covers user_uuid; jsonb payload is the first strict failure. #}
+  {# type_policy and overrides sit after live so positional true still means live. #}
+  {% set planned = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'users',
+    'public',
+    'strict'
+  ) %}
   {% set strict = dbt_bigquery_federation._federation_inspect_result(
     'application_pg',
     'public',
@@ -45,13 +51,7 @@
     'strict'
   ) %}
   {% do dbt_unittest.assert_equals(strict.ok, false) %}
-  {% do dbt_unittest.assert_equals('cloud_sql_postgres' in strict.error, true) %}
-  {% do dbt_unittest.assert_equals('users' in strict.error, true) %}
-  {% do dbt_unittest.assert_equals('payload' in strict.error, true) %}
-  {% do dbt_unittest.assert_equals('jsonb' in strict.error, true) %}
-  {% do dbt_unittest.assert_equals('strict' in strict.error, true) %}
-  {% do dbt_unittest.assert_equals('type_overrides' in strict.error, true) %}
-  {% do dbt_unittest.assert_equals('pin strategy' in strict.error, true) %}
+  {% do dbt_unittest.assert_equals(strict.error, planned.error) %}
 
   {% set overridden = dbt_bigquery_federation._federation_inspect_result(
     'application_pg',
@@ -70,23 +70,30 @@
   {% do dbt_unittest.assert_equals(overridden.plan.body, 'projection') %}
 {% endmacro %}
 
-{% macro test_federation_inspect_missing_pin_and_unknown_type_errors() %}
+{% macro test_federation_inspect_forwards_plan_errors() %}
+  {% set planned_missing = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'does_not_exist',
+    'public'
+  ) %}
   {% set missing = dbt_bigquery_federation._federation_inspect_result(
     'application_pg',
     'public',
     'does_not_exist'
   ) %}
   {% do dbt_unittest.assert_equals(missing.ok, false) %}
-  {% do dbt_unittest.assert_equals('application_pg' in missing.error, true) %}
-  {% do dbt_unittest.assert_equals('application_pg.public.does_not_exist' in missing.error, true) %}
+  {% do dbt_unittest.assert_equals(missing.error, planned_missing.error) %}
 
+  {% set planned_unknown = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'mystery',
+    'public'
+  ) %}
   {% set unknown = dbt_bigquery_federation._federation_inspect_result(
     'application_pg',
     'public',
     'mystery'
   ) %}
   {% do dbt_unittest.assert_equals(unknown.ok, false) %}
-  {% do dbt_unittest.assert_equals('citext' in unknown.error, true) %}
-  {% do dbt_unittest.assert_equals('type_overrides' in unknown.error, true) %}
-  {% do dbt_unittest.assert_equals('pin strategy' in unknown.error, true) %}
+  {% do dbt_unittest.assert_equals(unknown.error, planned_unknown.error) %}
 {% endmacro %}

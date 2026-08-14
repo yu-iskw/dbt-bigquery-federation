@@ -34,8 +34,7 @@
     'varbit': 'bit varying'
   } %}
   {# Leave numeric/decimal typmods intact; parameterized decimals are pin-authoring errors. #}
-  {% set numeric_typmod = modules.re.match('^(numeric|decimal)\\s*\\(', normalized) %}
-  {% if numeric_typmod is not none %}
+  {% if modules.re.match('^(numeric|decimal)\\s*\\(', normalized) is not none %}
     {{ return(normalized) }}
   {% endif %}
   {% set stripped = modules.re.sub('\\s*\\([^)]*\\)$', '', normalized) %}
