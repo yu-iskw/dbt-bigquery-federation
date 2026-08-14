@@ -12,7 +12,7 @@
   {% do dbt_unittest.assert_equals(cloud_sql, alloydb) %}
 {% endmacro %}
 
-{% macro test_metadata_query_wraps_external_query() %}
+{% macro test_metadata_external_query() %}
   {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection('application_pg') %}
   {% do dbt_unittest.assert_equals(resolved.ok, true) %}
   {% set sql = dbt_bigquery_federation._federation_metadata_query_sql(resolved.connection, 'public', 'orders') %}
