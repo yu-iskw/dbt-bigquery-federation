@@ -11,7 +11,7 @@
   {% set lines = namespace(rows=['tables:', '  ' ~ key ~ ':', '    columns:']) %}
   {% for col in result.columns %}
     {% do lines.rows.append('      - name: ' ~ dbt_bigquery_federation._federation_yaml_double_quoted(col.name)) %}
-    {% do lines.rows.append('        data_type: ' ~ dbt_bigquery_federation._federation_yaml_double_quoted(col.data_type)) %}
+    {% do lines.rows.append('        data_type: ' ~ dbt_bigquery_federation._federation_yaml_double_quoted(dbt_bigquery_federation._federation_column_declared_type(col))) %}
     {% if col.precision is not none %}
       {% do lines.rows.append('        precision: ' ~ (col.precision | string)) %}
     {% endif %}
@@ -37,14 +37,14 @@
 
 {% macro _federation_column_signature(column) %}
   {{ return({
-    'data_type': column.get('data_type'),
+    'data_type': dbt_bigquery_federation._federation_column_declared_type(column) | string | lower | trim,
     'precision': column.get('precision'),
     'scale': column.get('scale')
   }) }}
 {% endmacro %}
 
 {% macro _federation_format_column_type(column) %}
-  {% set data_type = column.get('data_type') | string %}
+  {% set data_type = dbt_bigquery_federation._federation_column_declared_type(column) | string %}
   {% if column.get('precision') is not none and column.get('scale') is not none %}
     {{ return(data_type ~ '(' ~ (column.precision | string) ~ ',' ~ (column.scale | string) ~ ')') }}
   {% endif %}
