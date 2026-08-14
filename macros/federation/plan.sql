@@ -77,6 +77,14 @@
   {% if not data_type %}
     {{ return({'ok': false, 'error': 'Pin column ' ~ name ~ ' is missing data_type', 'classified': none}) }}
   {% endif %}
+  {% set raw_data_type = data_type | string | lower %}
+  {% if modules.re.match('^(numeric|decimal)\\s*\\(', raw_data_type) is not none %}
+    {{ return({
+      'ok': false,
+      'error': 'Pin column ' ~ name ~ ' data_type ' ~ (data_type | string) ~ ' embeds precision/scale. Use bare numeric plus precision and scale fields.',
+      'classified': none
+    }) }}
+  {% endif %}
   {% set source_type = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, data_type) %}
   {% set override = dbt_bigquery_federation._federation_lookup_override(column, type_overrides, invocation_overrides, source_type) %}
   {% if override is not none and override is not mapping %}

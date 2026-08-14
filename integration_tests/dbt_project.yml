@@ -121,8 +121,27 @@ vars:
         columns:
           - name: payload
             data_type: json
+      application_pg.public.uuids:
+        columns:
+          - name: user_uuid
+            data_type: uuid
+      application_pg.public.bad_numeric:
+        columns:
+          - name: amount
+            data_type: "numeric(12,2)"
+      application_pg.public.poison_cast:
+        columns:
+          - name: payload
+            data_type: text
+            strategy: remote_cast
+            remote_type: "text;drop"
+            target_type: STRING
     type_overrides:
       money:
+        strategy: remote_cast
+        remote_type: text
+        target_type: STRING
+      UUID:
         strategy: remote_cast
         remote_type: text
         target_type: STRING

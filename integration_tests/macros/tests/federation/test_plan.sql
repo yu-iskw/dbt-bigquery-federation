@@ -233,3 +233,66 @@
   {% do dbt_unittest.assert_equals(jsonb_pin.plan.columns[2].source_type, 'jsonb') %}
   {% do dbt_unittest.assert_equals(jsonb_pin.plan.columns[2].action, 'remote_cast') %}
 {% endmacro %}
+
+{% macro test_plan_type_overrides_uuid_uppercase_under_strict() %}
+  {# UUID key is normalized to uuid; users+strict must still fail because of jsonb. #}
+  {% set result = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'uuids',
+    'public',
+    'strict'
+  ) %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].name, 'user_uuid') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].source_type, 'uuid') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].remote_type, 'text') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].target_type, 'STRING') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select cast("user_uuid" as text) as "user_uuid" from "public"."uuids"'
+  ) %}
+  {% set users_strict = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'users',
+    'public',
+    'strict'
+  ) %}
+  {% do dbt_unittest.assert_equals(users_strict.ok, false) %}
+{% endmacro %}
+
+{% macro test_plan_numeric_typmod_errors_with_precision_scale_hint() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'bad_numeric',
+    'public'
+  ) %}
+  {% do dbt_unittest.assert_equals(result.ok, false) %}
+  {% do dbt_unittest.assert_equals('precision' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('scale' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('numeric' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('unknown type' in result.error, false) %}
+{% endmacro %}
+
+{% macro test_plan_unsafe_remote_type_errors() %}
+  {% set pin = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'poison_cast',
+    'public'
+  ) %}
+  {% do dbt_unittest.assert_equals(pin.ok, false) %}
+  {% do dbt_unittest.assert_equals('remote_type' in pin.error, true) %}
+  {% set quoted = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'orders',
+    'public',
+    'safe',
+    {
+      'id': {'strategy': 'remote_cast', 'remote_type': '"text"', 'target_type': 'STRING'}
+    }
+  ) %}
+  {% do dbt_unittest.assert_equals(quoted.ok, false) %}
+  {% do dbt_unittest.assert_equals('remote_type' in quoted.error, true) %}
+{% endmacro %}

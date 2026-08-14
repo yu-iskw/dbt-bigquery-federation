@@ -20,6 +20,9 @@
   {% do test_plan_search_types_safe_remote_cast() %}
   {% do test_plan_integer_array_unknown_errors() %}
   {% do test_plan_json_native_passthrough() %}
+  {% do test_plan_type_overrides_uuid_uppercase_under_strict() %}
+  {% do test_plan_numeric_typmod_errors_with_precision_scale_hint() %}
+  {% do test_plan_unsafe_remote_type_errors() %}
   {% do test_federated_relation_renders_passthrough() %}
   {% do test_federation_inspect_reports_pushdown() %}
 {% endmacro %}
