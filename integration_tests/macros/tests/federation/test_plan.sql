@@ -292,7 +292,9 @@
     'strict'
   ) %}
   {% do dbt_unittest.assert_equals(strict.ok, false) %}
-  {% do dbt_unittest.assert_equals(strict.error, safe.error) %}
+  {% do dbt_unittest.assert_equals('unknown type' in strict.error, true) %}
+  {% do dbt_unittest.assert_equals('integer[]' in strict.error, true) %}
+  {% do dbt_unittest.assert_equals('strict' in strict.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_json_native_passthrough() %}
