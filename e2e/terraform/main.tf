@@ -22,9 +22,8 @@ resource "google_project_service" "required" {
 }
 
 resource "google_project_service_identity" "bigquery_connection" {
-  provider = google-beta
-  project  = var.project_id
-  service  = "bigqueryconnection.googleapis.com"
+  project = var.project_id
+  service = "bigqueryconnection.googleapis.com"
 
   depends_on = [google_project_service.required]
 }
@@ -32,12 +31,12 @@ resource "google_project_service_identity" "bigquery_connection" {
 module "alloydb" {
   source = "./modules/alloydb"
 
-  project_id                  = var.project_id
-  project_number              = data.google_project.current.number
-  region                      = var.region
-  name_prefix                 = var.name_prefix
-  runner_principal            = var.runner_principal
-  bigquery_service_agent      = google_project_service_identity.bigquery_connection.email
+  project_id             = var.project_id
+  project_number         = data.google_project.current.number
+  region                 = var.region
+  name_prefix            = var.name_prefix
+  runner_principal       = var.runner_principal
+  bigquery_service_agent = google_project_service_identity.bigquery_connection.email
 
   depends_on = [google_project_service.required]
 }
