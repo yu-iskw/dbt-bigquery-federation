@@ -100,7 +100,7 @@ jobs:
             --name bigquery-emulator \
             -p 9050:9050 \
             -p 9060:9060 \
-            ghcr.io/goccy/bigquery-emulator:v0.8.1 \
+            ghcr.io/goccy/bigquery-emulator:0.8.1 \
             --project=dbt-bigquery-federation-ci \
             --dataset=dbt_bigquery_federation_ci
           for i in {1..30}; do
