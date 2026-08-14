@@ -28,7 +28,7 @@ Pattern:
 
 Do **not** add `postgres__federated_relation`. The dbt target adapter is not the remote database. Remote Cloud SQL PostgreSQL quoting and type maps go through `federation/providers/router.sql`.
 
-Internal helpers (`_federation_*`, `_cloud_sql_postgres_*`) must be called with the package prefix:
+Internal helpers (`_federation_*`, `_postgres_federation_*`, `_cloud_sql_postgres_*`) must be called with the package prefix:
 
 ```jinja
 {% set result = dbt_bigquery_federation._federation_try_plan(connection, table, schema) %}

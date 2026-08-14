@@ -1,4 +1,8 @@
 {% macro federation_generate_pin(connection, table, schema=None) -%}
+  {{ return(adapter.dispatch('federation_generate_pin', 'dbt_bigquery_federation')(connection, table, schema)) }}
+{%- endmacro %}
+
+{% macro default__federation_generate_pin(connection, table, schema=None) -%}
   {% set result = dbt_bigquery_federation._federation_try_get_remote_columns(connection, table, schema) %}
   {% if not result.ok %}
     {{ exceptions.raise_compiler_error(result.error) }}
@@ -28,6 +32,14 @@
   }) }}
 {% endmacro %}
 
+{% macro _federation_format_column_type(column) %}
+  {% set data_type = column.get('data_type') | string %}
+  {% if column.get('precision') is not none and column.get('scale') is not none %}
+    {{ return(data_type ~ '(' ~ (column.precision | string) ~ ',' ~ (column.scale | string) ~ ')') }}
+  {% endif %}
+  {{ return(data_type) }}
+{% endmacro %}
+
 {% macro _federation_schema_diff_columns(pinned_columns, live_columns) %}
   {% set pinned = namespace(map={}, order=[]) %}
   {% set live = namespace(map={}, order=[]) %}
@@ -55,49 +67,72 @@
   {{ return({'added': diff.added, 'removed': diff.removed, 'changed': diff.changed, 'has_changes': (diff.added | length + diff.removed | length + diff.changed | length) > 0}) }}
 {% endmacro %}
 
-{% macro federation_schema_diff(connection, table, schema=None) -%}
-  {% set pin = dbt_bigquery_federation._federation_try_load_pin(connection, table, schema) %}
-  {% if not pin.ok %}
-    {{ exceptions.raise_compiler_error(pin.error) }}
-  {% endif %}
-  {% set live = dbt_bigquery_federation._federation_try_get_remote_columns(connection, table, schema) %}
-  {% if not live.ok %}
-    {{ exceptions.raise_compiler_error(live.error) }}
-  {% endif %}
-  {% set diff = dbt_bigquery_federation._federation_schema_diff_columns(pin.pin.columns, live.columns) %}
-  {% set lines = namespace(rows=['relation=' ~ live.schema ~ '.' ~ table]) %}
+{% macro _federation_format_schema_diff_report(schema, table, diff) %}
+  {% set lines = namespace(rows=['relation=' ~ schema ~ '.' ~ table]) %}
   {% for col in diff.added %}
-    {% do lines.rows.append('+ ' ~ col.name ~ ' ' ~ col.data_type) %}
+    {% do lines.rows.append('+ ' ~ col.name ~ ' ' ~ dbt_bigquery_federation._federation_format_column_type(col)) %}
   {% endfor %}
   {% for col in diff.removed %}
-    {% do lines.rows.append('- ' ~ col.name ~ ' ' ~ col.data_type) %}
+    {% do lines.rows.append('- ' ~ col.name ~ ' ' ~ dbt_bigquery_federation._federation_format_column_type(col)) %}
   {% endfor %}
   {% for item in diff.changed %}
-    {% do lines.rows.append('~ ' ~ item.name ~ ' ' ~ item.pinned.data_type ~ ' -> ' ~ item.live.data_type) %}
+    {% do lines.rows.append(
+      '~ ' ~ item.name ~ ' ' ~ dbt_bigquery_federation._federation_format_column_type(item.pinned)
+      ~ ' -> ' ~ dbt_bigquery_federation._federation_format_column_type(item.live)
+    ) %}
   {% endfor %}
   {% if not diff.has_changes %}
     {% do lines.rows.append('no changes') %}
   {% endif %}
-  {% set report = lines.rows | join('\n') %}
+  {{ return(lines.rows | join('\n')) }}
+{% endmacro %}
+
+{% macro _federation_try_pin_live_diff(connection, table, schema=None) %}
+  {% set pin = dbt_bigquery_federation._federation_try_load_pin(connection, table, schema) %}
+  {% if not pin.ok %}
+    {{ return({'ok': false, 'error': pin.error, 'diff': none, 'schema': none, 'table': table}) }}
+  {% endif %}
+  {% set live = dbt_bigquery_federation._federation_try_get_remote_columns(connection, table, schema) %}
+  {% if not live.ok %}
+    {{ return({'ok': false, 'error': live.error, 'diff': none, 'schema': none, 'table': table}) }}
+  {% endif %}
+  {{ return({
+    'ok': true,
+    'error': none,
+    'diff': dbt_bigquery_federation._federation_schema_diff_columns(pin.pin.columns, live.columns),
+    'schema': live.schema,
+    'table': table
+  }) }}
+{% endmacro %}
+
+{% macro federation_schema_diff(connection, table, schema=None) -%}
+  {{ return(adapter.dispatch('federation_schema_diff', 'dbt_bigquery_federation')(connection, table, schema)) }}
+{%- endmacro %}
+
+{% macro default__federation_schema_diff(connection, table, schema=None) -%}
+  {% set result = dbt_bigquery_federation._federation_try_pin_live_diff(connection, table, schema) %}
+  {% if not result.ok %}
+    {{ exceptions.raise_compiler_error(result.error) }}
+  {% endif %}
+  {% set report = dbt_bigquery_federation._federation_format_schema_diff_report(result.schema, table, result.diff) %}
   {% do log(report, info=True) %}
   {{ return(report) }}
 {%- endmacro %}
 
 {% macro federation_validate(connection, table, schema=None, fail_on_drift=true) -%}
-  {% set pin = dbt_bigquery_federation._federation_try_load_pin(connection, table, schema) %}
-  {% if not pin.ok %}
-    {{ exceptions.raise_compiler_error(pin.error) }}
+  {{ return(adapter.dispatch('federation_validate', 'dbt_bigquery_federation')(connection, table, schema, fail_on_drift)) }}
+{%- endmacro %}
+
+{% macro default__federation_validate(connection, table, schema=None, fail_on_drift=true) -%}
+  {% set result = dbt_bigquery_federation._federation_try_pin_live_diff(connection, table, schema) %}
+  {% if not result.ok %}
+    {{ exceptions.raise_compiler_error(result.error) }}
   {% endif %}
-  {% set live = dbt_bigquery_federation._federation_try_get_remote_columns(connection, table, schema) %}
-  {% if not live.ok %}
-    {{ exceptions.raise_compiler_error(live.error) }}
-  {% endif %}
-  {% set diff = dbt_bigquery_federation._federation_schema_diff_columns(pin.pin.columns, live.columns) %}
-  {% if diff.has_changes and fail_on_drift %}
+  {% if result.diff.has_changes and fail_on_drift %}
     {{ exceptions.raise_compiler_error(
-      'Federation schema drift detected for ' ~ connection ~ '.' ~ live.schema ~ '.' ~ table ~
-      ': added=' ~ (diff.added | length) ~ ', removed=' ~ (diff.removed | length) ~ ', changed=' ~ (diff.changed | length)
+      'Federation schema drift detected for ' ~ connection ~ '.' ~ result.schema ~ '.' ~ table ~
+      ': added=' ~ (result.diff.added | length) ~ ', removed=' ~ (result.diff.removed | length) ~ ', changed=' ~ (result.diff.changed | length)
     ) }}
   {% endif %}
-  {{ return(not diff.has_changes) }}
+  {{ return(not result.diff.has_changes) }}
 {%- endmacro %}

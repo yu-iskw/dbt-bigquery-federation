@@ -183,6 +183,12 @@ vars:
             strategy: remote_cast
             remote_type: "text;drop"
             target_type: STRING
+      spanner_app..Orders:
+        columns:
+          - name: id
+            data_type: INT64
+          - name: payload
+            data_type: JSON
     type_overrides:
       money:
         strategy: remote_cast

@@ -16,6 +16,7 @@
   {% do test_live_parse_stub_is_passthrough() %}
   {% do test_schema_diff_detects_add_remove_change() %}
   {% do test_schema_diff_no_changes() %}
+  {% do test_schema_diff_report_includes_precision_scale() %}
   {% do test_plan_all_native_passthrough() %}
   {% do test_plan_uuid_jsonb_safe_projection() %}
   {% do test_plan_uuid_strict_errors() %}
@@ -38,6 +39,7 @@
   {% do test_plan_type_overrides_uuid_uppercase_under_strict() %}
   {% do test_plan_numeric_typmod_errors_with_precision_scale_hint() %}
   {% do test_plan_unsafe_remote_type_errors() %}
+  {% do test_plan_user_defined_udt_name_classifies_uuid() %}
   {% do test_alloydb_postgres_plan_uses_shared_profile() %}
   {% do test_alloydb_postgres_router_matches_postgres_dialect() %}
   {% do test_alloydb_postgres_live_plan_conformance() %}
@@ -46,6 +48,8 @@
   {% do test_spanner_google_type_mapping() %}
   {% do test_spanner_google_sql_rendering() %}
   {% do test_spanner_google_live_plan_native_types() %}
+  {% do test_spanner_google_struct_cannot_federate() %}
+  {% do test_spanner_pinned_federated_relation_renders_priority() %}
   {% do test_federated_relation_renders_passthrough() %}
   {% do test_federation_inspect_reports_pushdown() %}
   {% do test_federation_inspect_strict_requires_overrides() %}

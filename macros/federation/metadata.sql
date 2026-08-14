@@ -66,11 +66,10 @@
   {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection(connection) %}
   {% if not resolved.ok %}{{ return({'ok': false, 'error': resolved.error, 'columns': none, 'connection': none, 'schema': none, 'table': table}) }}{% endif %}
   {% set conn = resolved.connection %}
-  {% if not dbt_bigquery_federation._federation_provider_capability(conn.provider, 'schema_discovery', false) %}
+  {% if not conn.capabilities.get('schema_discovery', false) %}
     {{ return({'ok': false, 'error': 'Provider ' ~ conn.provider ~ ' does not support schema discovery', 'columns': none, 'connection': conn, 'schema': schema, 'table': table}) }}
   {% endif %}
-  {% set relation_schema = schema if schema is not none else conn.default_schema %}
-  {% if relation_schema is none and conn.metadata_profile == 'spanner_google_information_schema' %}{% set relation_schema = '' %}{% endif %}
+  {% set relation_schema = dbt_bigquery_federation._federation_resolve_relation_schema(conn, schema) %}
   {% if relation_schema is none %}{{ return({'ok': false, 'error': 'schema is required for ' ~ connection ~ '.' ~ table ~ ' (no connection defaults.schema)', 'columns': none, 'connection': conn, 'schema': none, 'table': table}) }}{% endif %}
   {% if not execute %}{{ return({'ok': false, 'error': 'Live metadata discovery requires execute=true; use pinned metadata during parse-only evaluation', 'columns': none, 'connection': conn, 'schema': relation_schema, 'table': table}) }}{% endif %}
   {% set query_sql = dbt_bigquery_federation._federation_metadata_query_sql(conn, relation_schema, table) %}

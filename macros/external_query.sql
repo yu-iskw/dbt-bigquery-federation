@@ -7,5 +7,10 @@
   {% if not resolved.ok %}
     {{ exceptions.raise_compiler_error(resolved.error) }}
   {% endif %}
-  {{ return(dbt_bigquery_federation._federation_render_external_query(resolved.connection.connection_id, sql, none)) }}
+  {{ return(dbt_bigquery_federation._federation_render_external_query(
+    resolved.connection.connection_id,
+    sql,
+    none,
+    resolved.connection.get('query_execution_priority')
+  )) }}
 {%- endmacro %}

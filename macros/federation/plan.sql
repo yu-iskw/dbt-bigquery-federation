@@ -65,23 +65,32 @@
   {{ return(matched is not none) }}
 {% endmacro %}
 
+{% macro _federation_column_declared_type(column) %}
+  {% set data_type = column.get('data_type') %}
+  {% set udt_name = column.get('udt_name') %}
+  {% if udt_name is not none and (data_type | string | lower | trim) in ['user-defined', 'array'] %}
+    {{ return(udt_name) }}
+  {% endif %}
+  {{ return(data_type) }}
+{% endmacro %}
+
 {% macro _federation_classify_column(provider, column, policy, type_overrides, invocation_overrides) %}
   {% if column is not mapping %}
-    {{ return({'ok': false, 'error': 'Each pin column must be a mapping', 'classified': none}) }}
+    {{ return({'ok': false, 'error': 'Each column must be a mapping', 'classified': none}) }}
   {% endif %}
   {% set name = column.get('name') %}
   {% if not name %}
-    {{ return({'ok': false, 'error': 'Pin column is missing name', 'classified': none}) }}
+    {{ return({'ok': false, 'error': 'Column is missing name', 'classified': none}) }}
   {% endif %}
-  {% set data_type = column.get('data_type') %}
+  {% set data_type = dbt_bigquery_federation._federation_column_declared_type(column) %}
   {% if not data_type %}
-    {{ return({'ok': false, 'error': 'Pin column ' ~ name ~ ' is missing data_type', 'classified': none}) }}
+    {{ return({'ok': false, 'error': 'Column ' ~ name ~ ' is missing data_type', 'classified': none}) }}
   {% endif %}
   {% set source_type = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, data_type) %}
   {% if modules.re.match('^(numeric|decimal)\\s*\\(', source_type) is not none %}
     {{ return({
       'ok': false,
-      'error': 'Pin column ' ~ name ~ ' data_type ' ~ (data_type | string) ~ ' embeds precision/scale. Use bare numeric plus precision and scale fields.',
+      'error': 'Column ' ~ name ~ ' data_type ' ~ (data_type | string) ~ ' embeds precision/scale. Use bare numeric plus precision and scale fields.',
       'classified': none
     }) }}
   {% endif %}
@@ -94,7 +103,7 @@
     {% if strategy == 'remote_cast' %}
       {% set remote_type = override.get('remote_type', 'text') %}
       {% if not dbt_bigquery_federation._federation_validate_remote_type(remote_type) %}
-        {{ return({'ok': false, 'error': 'Column ' ~ name ~ ' override remote_type is not a safe PostgreSQL type name', 'classified': none}) }}
+        {{ return({'ok': false, 'error': 'Column ' ~ name ~ ' override remote_type is not a safe remote type name', 'classified': none}) }}
       {% endif %}
       {{ return({'ok': true, 'error': none, 'classified': dbt_bigquery_federation._federation_classified_column(
         column, source_type, 'remote_cast', override.get('target_type', 'STRING'), remote_type, 'representation_change'
@@ -120,6 +129,13 @@
       column, entry.data_type, 'decimal', 'NUMERIC', none, 'exact'
     )}) }}
   {% elif entry.kind == 'unsupported' %}
+    {% if not entry.remote_type %}
+      {{ return({
+        'ok': false,
+        'error': 'Column ' ~ name ~ ' has unsupported type ' ~ (data_type | string) ~ ' that cannot be federated.',
+        'classified': none
+      }) }}
+    {% endif %}
     {% if policy == 'strict' %}
       {{ return({
         'ok': false,
@@ -233,57 +249,7 @@
   {% if not loaded.ok %}
     {{ return({'ok': false, 'error': loaded.error, 'plan': none}) }}
   {% endif %}
-  {% set pin_columns = loaded.pin.columns %}
-  {% set conn = loaded.connection %}
-  {% set relation_schema = loaded.pin.schema %}
-  {% set relation_table = loaded.pin.table %}
-  {% set relation = conn.provider ~ ' ' ~ relation_schema ~ '.' ~ relation_table %}
-
-  {% set policy_result = dbt_bigquery_federation._federation_resolve_policy(conn, type_policy) %}
-  {% if not policy_result.ok %}
-    {{ return({'ok': false, 'error': relation ~ ': ' ~ policy_result.error, 'plan': none}) }}
-  {% endif %}
-  {% set policy = policy_result.policy %}
-  {% set type_overrides = dbt_bigquery_federation._federation_package_type_overrides() %}
-  {% if overrides is none %}
-    {% set invocation_overrides = {} %}
-  {% elif overrides is mapping %}
-    {% set invocation_overrides = overrides %}
-  {% else %}
-    {{ return({'ok': false, 'error': relation ~ ': overrides must be a mapping', 'plan': none}) }}
-  {% endif %}
-
-  {% set classified_ns = namespace(columns=[]) %}
-  {% for column in pin_columns %}
-    {% set item = dbt_bigquery_federation._federation_classify_column(conn.provider, column, policy, type_overrides, invocation_overrides) %}
-    {% if not item.ok %}
-      {{ return({'ok': false, 'error': relation ~ ': ' ~ item.error, 'plan': none}) }}
-    {% endif %}
-    {% do classified_ns.columns.append(item.classified) %}
-  {% endfor %}
-
-  {% set folded = dbt_bigquery_federation._federation_fold_decimals(classified_ns.columns, policy) %}
-  {% if not folded.ok %}
-    {{ return({'ok': false, 'error': relation ~ ': ' ~ folded.error, 'plan': none}) }}
-  {% endif %}
-  {% set sql_plan = dbt_bigquery_federation._federation_build_remote_sql(conn.provider, relation_schema, relation_table, folded.columns) %}
-
-  {{ return({
-    'ok': true,
-    'error': none,
-    'plan': {
-      'provider': conn.provider,
-      'connection': conn.alias,
-      'connection_id': conn.connection_id,
-      'schema': relation_schema,
-      'table': relation_table,
-      'policy': policy,
-      'body': sql_plan.body,
-      'decimal_option': folded.decimal_option,
-      'pushdown': sql_plan.pushdown,
-      'remote_sql': sql_plan.remote_sql,
-      'warnings': folded.warnings,
-      'columns': folded.columns
-    }
-  }) }}
+  {{ return(dbt_bigquery_federation._federation_try_plan_columns(
+    loaded.connection, loaded.pin.schema, loaded.pin.table, loaded.pin.columns, type_policy, overrides, 'pinned'
+  )) }}
 {% endmacro %}

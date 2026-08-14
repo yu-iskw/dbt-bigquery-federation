@@ -4,9 +4,9 @@ macros:
   - name: federated_relation
     description: >
       Returns a BigQuery EXTERNAL_QUERY table expression. In metadata_mode=auto,
-      a declared pin is preferred; otherwise live PostgreSQL-family metadata is
-      discovered during connected compilation. metadata_mode=pinned is fully
-      deterministic and metadata_mode=live always discovers the remote schema.
+      a declared pin is preferred; otherwise live remote metadata is discovered
+      during connected compilation. metadata_mode=pinned is fully deterministic
+      and metadata_mode=live always discovers the remote schema.
     arguments:
       - name: connection
         type: string
@@ -42,8 +42,8 @@ macros:
   - name: get_remote_columns
     description: >
       Discovers and normalizes the current remote relation schema through
-      EXTERNAL_QUERY against the provider metadata profile. Currently supported
-      by Cloud SQL PostgreSQL and AlloyDB PostgreSQL.
+      EXTERNAL_QUERY against the provider metadata profile. Supported by
+      Cloud SQL PostgreSQL, AlloyDB PostgreSQL, and Spanner GoogleSQL.
     arguments:
       - name: connection
         type: string

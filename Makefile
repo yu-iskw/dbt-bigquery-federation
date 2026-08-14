@@ -26,6 +26,6 @@ run-fusion-tests:
 	$(MAKE) -C integration_tests run-fusion-tests
 
 test-integration:
-	$(MAKE) -C integration_tests test
+	$(MAKE) -C integration_tests run-integration-tests
 
 test: run-unit-tests run-integration-tests

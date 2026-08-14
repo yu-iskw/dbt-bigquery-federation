@@ -19,10 +19,10 @@ You are the **verifier** for this repository. The **`lint-and-fix`** and **`test
 
 ## Repository truth (overrides stale examples elsewhere)
 
-- **Warehouses:** Postgres and DuckDB — not BigQuery.
+- **Warehouses:** Postgres (Jinja execution engine). Consumer warehouse is BigQuery.
 - **Commands** (from **repo root**):
   - `make lint` — pre-commit on the whole tree
-  - `make run-unit-tests` — macro-runner unit tests (dbt-core 1.10 + 1.11, Postgres then DuckDB)
+  - `make run-unit-tests` — macro-runner unit tests (dbt-core 1.10 + 1.11, Postgres)
   - `make run-integration-tests` — `dbt build` in the sample project (same matrix)
   - `make test` — `run-unit-tests` **and** `run-integration-tests` (full dbt-core lane, longer)
   - Fusion (optional): `make run-unit-tests-fusion`, `make run-integration-tests-fusion`, or `make run-fusion-tests` for both

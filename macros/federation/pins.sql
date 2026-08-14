@@ -8,10 +8,7 @@
     {{ return({'ok': false, 'error': resolved.error, 'pin': none, 'connection': none}) }}
   {% endif %}
   {% set conn = resolved.connection %}
-  {% set relation_schema = schema %}
-  {% if relation_schema is none %}
-    {% set relation_schema = conn.default_schema %}
-  {% endif %}
+  {% set relation_schema = dbt_bigquery_federation._federation_resolve_relation_schema(conn, schema) %}
   {% if relation_schema is none %}
     {{ return({
       'ok': false,

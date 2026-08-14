@@ -15,7 +15,7 @@ Read first:
 - `CONTRIBUTING.md`
 
 Repository truth:
-- Warehouses: Postgres and DuckDB
+- Warehouses: Postgres (Jinja engine); consumer warehouse is BigQuery
 - Root commands:
   - `make lint`
   - `make run-unit-tests`

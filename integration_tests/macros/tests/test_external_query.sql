@@ -22,4 +22,12 @@
   {% set multiline_actual = dbt_bigquery_federation._federation_collapse_ws(multiline) %}
   {% set multiline_expected = "EXTERNAL_QUERY('projects/example/locations/us/connections/application-pg', 'select 1\\nfrom t')" %}
   {% do dbt_unittest.assert_equals(multiline_actual, multiline_expected) %}
+
+  {% set spanner = dbt_bigquery_federation.external_query(
+    'spanner_app',
+    'select * from `Orders`'
+  ) %}
+  {% set spanner_actual = dbt_bigquery_federation._federation_collapse_ws(spanner) %}
+  {% set spanner_expected = "EXTERNAL_QUERY('projects/example/locations/us/connections/spanner-data', 'select * from `Orders`', '" ~ '{"query_execution_priority":"low"}' ~ "')" %}
+  {% do dbt_unittest.assert_equals(spanner_actual, spanner_expected) %}
 {% endmacro %}

@@ -365,3 +365,17 @@
   {% do dbt_unittest.assert_equals(quoted.ok, false) %}
   {% do dbt_unittest.assert_equals('remote_type' in quoted.error, true) %}
 {% endmacro %}
+
+{% macro test_plan_user_defined_udt_name_classifies_uuid() %}
+  {% set conn = {'provider': 'cloud_sql_postgres', 'alias': 'application_pg', 'connection_id': 'projects/p/locations/us/connections/pg', 'policy': 'safe'} %}
+  {% set columns = [{'name': 'user_uuid', 'data_type': 'USER-DEFINED', 'udt_name': 'uuid'}] %}
+  {% set result = dbt_bigquery_federation._federation_try_plan_columns(conn, 'public', 'users', columns) %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].source_type, 'uuid') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].remote_type, 'text') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select cast("user_uuid" as text) as "user_uuid" from "public"."users"'
+  ) %}
+{% endmacro %}

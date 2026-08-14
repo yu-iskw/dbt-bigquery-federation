@@ -39,7 +39,7 @@ def get_dbt_command(session, uv_group):
     return "dbt"
 
 
-def build_env(session, uv_group, adapter, dbt_cmd):
+def build_env(session, uv_group, dbt_cmd):
     env = dict(os.environ)
     env.update(session.env)
     env["DBT_CMD"] = dbt_cmd
@@ -63,11 +63,10 @@ def run_deps(session, dbt_cmd, adapter, env):
 
 
 def run_dbt_shell_script(session, uv_group, adapter, script_name):
-    """Install deps, then run a bash harness script (unit or integration tests)."""
+    """Install package deps, then run a bash harness script (unit or integration tests)."""
     install_dependencies(session, uv_group)
     dbt_cmd = get_dbt_command(session, uv_group)
-    env = build_env(session, uv_group, adapter, dbt_cmd)
-    run_deps(session, dbt_cmd, adapter, env)
+    env = build_env(session, uv_group, dbt_cmd)
     session.run(
         "bash",
         script_name,

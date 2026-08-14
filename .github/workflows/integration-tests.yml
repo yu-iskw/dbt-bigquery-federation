@@ -9,6 +9,7 @@ on:
       - macros/**/*
       - integration_tests/**/*
       - dbt_project.yml
+      - Makefile
 
 permissions:
   contents: read

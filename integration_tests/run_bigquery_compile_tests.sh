@@ -21,7 +21,6 @@ DBT_CMD="${DBT_CMD:-dbt}"
 # bigquery-emulator using api_endpoint and a dummy OAuth bearer token. No ADC or
 # Google Cloud project is required.
 "${DBT_CMD}" debug --profiles-dir profiles --target "${TARGET}"
-"${DBT_CMD}" parse --profiles-dir profiles --target "${TARGET}"
 
 # Compile pinned federation models through the actual BigQuery adapter. This is
 # the boundary that could not be exercised in credential-free CI before the
@@ -31,9 +30,9 @@ DBT_CMD="${DBT_CMD:-dbt}"
 "${DBT_CMD}" compile \
 	--profiles-dir profiles \
 	--target "${TARGET}" \
-	--select stg_federated_orders stg_federated_orders_table
+	--select stg_federated_orders stg_federated_orders_table stg_federated_orders_incremental
 
-for model in stg_federated_orders stg_federated_orders_table; do
+for model in stg_federated_orders stg_federated_orders_table stg_federated_orders_incremental; do
 	compiled="target/compiled/dbt_bigquery_federation_integration_tests/models/federation/${model}.sql"
 	test -f "${compiled}"
 	grep -q "EXTERNAL_QUERY" "${compiled}"

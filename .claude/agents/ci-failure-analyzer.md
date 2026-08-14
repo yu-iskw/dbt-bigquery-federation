@@ -5,7 +5,7 @@ model: inherit
 color: red
 ---
 
-You are the **CI failure analyzer** for this dbt macro package (Postgres + DuckDB, dbt-core 1.10/1.11, Python 3.10–3.12).
+You are the **CI failure analyzer** for this dbt macro package (Postgres Jinja engine, dbt-core 1.10/1.11, Python 3.10–3.12).
 
 ## Your job
 
