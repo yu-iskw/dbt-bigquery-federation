@@ -19,7 +19,9 @@ Terraform owns infrastructure and BigQuery connection resources. SQL fixtures ar
 - a Google Cloud project with billing enabled
 - permission to create AlloyDB, Spanner, BigQuery Connection, networking, and IAM resources
 
-The AlloyDB fixture path uses a public IP **only through the AlloyDB Auth Proxy**. No authorized external network is configured. Google documents this as the supported laptop-development path; the proxy handles IAM authorization and an encrypted tunnel.
+The AlloyDB fixture path uses a public IP **only through the AlloyDB Auth Proxy**. No authorized external network is configured. The local runner principal receives both `roles/alloydb.client` and `roles/serviceusage.serviceUsageConsumer`, which are required by the Auth Proxy. The BigQuery Connection service agent separately receives `roles/alloydb.client` so BigQuery can connect to AlloyDB.
+
+Spanner uses a different authorization path: the local querying principal receives `roles/spanner.databaseReader` for federated reads and `roles/spanner.databaseUser` for fixture loading. The committed Spanner DML fixture uses `INSERT OR UPDATE`, so rerunning the local harness updates the same deterministic fixture rows rather than failing on duplicate primary keys.
 
 ## Usage
 
@@ -38,7 +40,7 @@ cd terraform
 terraform destroy
 ```
 
-`runner_principal` should be the IAM member used by local ADC, for example `user:you@example.com`. The harness grants only the roles needed to execute BigQuery jobs, use the test connections, read the test Spanner database, and connect to the test AlloyDB instance.
+`runner_principal` should be the IAM member used by local ADC, for example `user:you@example.com`. The harness grants only the roles needed to execute BigQuery jobs, use the test connections, seed/read the test Spanner database, and connect to the test AlloyDB instance.
 
 ## State and credentials
 
@@ -52,4 +54,4 @@ This harness is deliberately local and ephemeral. Terraform state contains gener
 4. calls `get_remote_columns` for AlloyDB and Spanner to exercise live metadata discovery;
 5. executes representative `EXTERNAL_QUERY` statements with `bq query` and checks deterministic row counts.
 
-The existing credential-free emulator CI remains unchanged.
+The existing credential-free emulator CI remains unchanged. Real Google Cloud provisioning and query execution are deliberately developer-triggered and are not performed by GitHub Actions.
