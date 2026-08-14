@@ -10,6 +10,9 @@ on:
       - integration_tests/**/*
       - dbt_project.yml
 
+permissions:
+  contents: read
+
 jobs:
   integration:
     runs-on: ubuntu-latest
@@ -39,10 +42,12 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           cache-dependency-glob: "integration_tests/pyproject.toml"
@@ -63,7 +68,7 @@ jobs:
 
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-logs-${{ matrix.python-version }}-${{ matrix.dbt-group }}-${{ matrix.adapter }}
           retention-days: 3
@@ -84,10 +89,12 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           cache-dependency-glob: "integration_tests/pyproject.toml"
@@ -120,7 +127,6 @@ jobs:
           DBT_BIGQUERY_DATASET: dbt_bigquery_federation_ci
           DBT_BIGQUERY_LOCATION: US
           DBT_BIGQUERY_API_ENDPOINT: http://127.0.0.1:9050
-          DBT_BIGQUERY_TOKEN: bigquery-emulator
         run: |
           mkdir -p target
           uv run nox -s "bigquery_emulator_tests(uv_group='${{ matrix.dbt-group }}')"
@@ -132,7 +138,7 @@ jobs:
 
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bigquery-emulator-logs-${{ matrix.dbt-group }}
           retention-days: 3
@@ -167,10 +173,12 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           cache-dependency-glob: "integration_tests/pyproject.toml"
