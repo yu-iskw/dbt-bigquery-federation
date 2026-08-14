@@ -10,6 +10,9 @@
   {% do test_plan_mixed_decimals_safe_projects_offender() %}
   {% do test_plan_mixed_decimals_strict_errors() %}
   {% do test_plan_mixed_bignumeric_and_unbounded_keeps_option() %}
+  {% do test_plan_all_bignumeric_passthrough() %}
+  {% do test_plan_mixed_remaining_decimals_safe_keeps_option() %}
+  {% do test_plan_mixed_remaining_decimals_strict_errors() %}
   {% do test_plan_uuid_override_remote_cast() %}
   {% do test_plan_missing_pin_errors() %}
   {% do test_plan_type_overrides_money_under_strict() %}

@@ -51,6 +51,11 @@
   {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
   {% do dbt_unittest.assert_equals(result.plan.decimal_option, none) %}
   {% do dbt_unittest.assert_equals(result.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(result.plan.warnings, []) %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select * from "public"."amounts"'
+  ) %}
 {% endmacro %}
 
 {% macro test_plan_mixed_decimals_safe_projects_offender() %}
@@ -83,6 +88,7 @@
     'strict'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
+  {% do dbt_unittest.assert_equals('ratio' in result.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_mixed_bignumeric_and_unbounded_keeps_option() %}
@@ -98,6 +104,77 @@
   {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'passthrough') %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].target_type, 'BIGNUMERIC') %}
   {% do dbt_unittest.assert_equals(result.plan.columns[1].action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select "wide_amount", cast("ratio" as text) as "ratio" from "public"."wide_decimals"'
+  ) %}
+  {% do dbt_unittest.assert_equals(
+    result.plan.warnings,
+    ['One or more decimal columns cannot be proven to fit BIGNUMERIC; those columns are remote-cast to text and pushdown is lost.']
+  ) %}
+{% endmacro %}
+
+{% macro test_plan_all_bignumeric_passthrough() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'bignumeric_decimals',
+    'public'
+  ) %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'kept') %}
+  {% do dbt_unittest.assert_equals(result.plan.decimal_option, 'bignumeric') %}
+  {% do dbt_unittest.assert_equals(result.plan.warnings, []) %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select * from "public"."bignumeric_decimals"'
+  ) %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].name, 'wide_amount') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].target_type, 'BIGNUMERIC') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].name, 'wide_fee') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].target_type, 'BIGNUMERIC') %}
+{% endmacro %}
+
+{% macro test_plan_mixed_remaining_decimals_safe_keeps_option() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'mixed_remaining_decimals',
+    'public'
+  ) %}
+  {% do dbt_unittest.assert_equals(result.ok, true) %}
+  {% do dbt_unittest.assert_equals(result.plan.body, 'projection') %}
+  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'lost') %}
+  {% do dbt_unittest.assert_equals(result.plan.decimal_option, 'bignumeric') %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
+    'select "amount", "wide", cast("ratio" as text) as "ratio" from "public"."mixed_remaining_decimals"'
+  ) %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].name, 'amount') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[0].target_type, 'BIGNUMERIC') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].name, 'wide') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].action, 'passthrough') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[1].target_type, 'BIGNUMERIC') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[2].name, 'ratio') %}
+  {% do dbt_unittest.assert_equals(result.plan.columns[2].action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(
+    result.plan.warnings,
+    ['One or more decimal columns cannot be proven to fit BIGNUMERIC; those columns are remote-cast to text and pushdown is lost.']
+  ) %}
+{% endmacro %}
+
+{% macro test_plan_mixed_remaining_decimals_strict_errors() %}
+  {% set result = dbt_bigquery_federation._federation_try_plan(
+    'application_pg',
+    'mixed_remaining_decimals',
+    'public',
+    'strict'
+  ) %}
+  {% do dbt_unittest.assert_equals(result.ok, false) %}
+  {% do dbt_unittest.assert_equals('ratio' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('unbounded' in result.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_uuid_override_remote_cast() %}

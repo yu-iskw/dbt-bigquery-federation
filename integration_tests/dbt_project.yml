@@ -81,6 +81,28 @@ vars:
             scale: 10
           - name: ratio
             data_type: numeric
+      application_pg.public.bignumeric_decimals:
+        columns:
+          - name: wide_amount
+            data_type: numeric
+            precision: 40
+            scale: 10
+          - name: wide_fee
+            data_type: numeric
+            precision: 40
+            scale: 10
+      application_pg.public.mixed_remaining_decimals:
+        columns:
+          - name: amount
+            data_type: numeric
+            precision: 12
+            scale: 2
+          - name: wide
+            data_type: numeric
+            precision: 40
+            scale: 10
+          - name: ratio
+            data_type: numeric
       application_pg.public.prices:
         columns:
           - name: price
