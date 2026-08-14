@@ -105,7 +105,7 @@ from {{ dbt_bigquery_federation.federated_relation(
 
 SQL pushdowns apply only to federated queries of the form `SELECT * FROM T`. The package emits a remote column list only when a conversion (for example `uuid` → `text`) requires it.
 
-Under **`safe`** (default), known-unsupported PostgreSQL types such as `uuid` and `jsonb` are remote-cast to `text`. Unknown types fail. **`strict`** fails unsupported types until you pass an override.
+Under **`safe`** (default), known-unsupported PostgreSQL types such as `uuid` and `jsonb` are remote-cast to `text`. Unknown types fail. **`strict`** fails unsupported types until you pass an override. Compile warns when a safe decimal fold remote-casts oversized or unbounded decimals and loses pushdown.
 
 Incremental models should set `on_schema_change='fail'` unless you explicitly choose another strategy. This package does not set it for you.
 

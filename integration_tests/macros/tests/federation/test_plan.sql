@@ -8,6 +8,7 @@
     dbt_bigquery_federation._federation_collapse_ws(result.plan.remote_sql),
     'select * from "public"."orders"'
   ) %}
+  {% do dbt_unittest.assert_equals(result.plan.warnings, []) %}
 {% endmacro %}
 
 {% macro test_plan_uuid_jsonb_safe_projection() %}
@@ -68,6 +69,10 @@
   {% set ratio_col = result.plan.columns[1] %}
   {% do dbt_unittest.assert_equals(ratio_col.name, 'ratio') %}
   {% do dbt_unittest.assert_equals(ratio_col.action, 'remote_cast') %}
+  {% do dbt_unittest.assert_equals(
+    result.plan.warnings,
+    ['One or more decimal columns cannot be proven to fit BIGNUMERIC; those columns are remote-cast to text and pushdown is lost.']
+  ) %}
 {% endmacro %}
 
 {% macro test_plan_mixed_decimals_strict_errors() %}

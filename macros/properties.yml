@@ -5,7 +5,9 @@ macros:
     description: >
       Returns a BigQuery EXTERNAL_QUERY table expression for a pinned Cloud SQL
       PostgreSQL relation. Plans types from vars.dbt_bigquery_federation pins;
-      does not query the warehouse. Embed the result in a FROM clause.
+      does not query the warehouse. Embed the result in a FROM clause. Under
+      safe, compile warns when a decimal fold remote-casts offenders and loses
+      pushdown.
     arguments:
       - name: connection
         type: string

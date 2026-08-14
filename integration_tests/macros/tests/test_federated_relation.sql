@@ -8,4 +8,9 @@
   {% set projected_actual = dbt_bigquery_federation._federation_collapse_ws(projected) %}
   {% set projected_expected = "EXTERNAL_QUERY('projects/example/locations/us/connections/application-pg', 'select \"id\", cast(\"user_uuid\" as text) as \"user_uuid\", cast(\"payload\" as text) as \"payload\" from \"public\".\"users\"')" %}
   {% do dbt_unittest.assert_equals(projected_actual, projected_expected) %}
+
+  {% set mixed = dbt_bigquery_federation.federated_relation('application_pg', 'mixed_decimals', 'public') %}
+  {% set mixed_actual = dbt_bigquery_federation._federation_collapse_ws(mixed) %}
+  {% set mixed_expected = "EXTERNAL_QUERY('projects/example/locations/us/connections/application-pg', 'select \"amount\", cast(\"ratio\" as text) as \"ratio\" from \"public\".\"mixed_decimals\"')" %}
+  {% do dbt_unittest.assert_equals(mixed_actual, mixed_expected) %}
 {% endmacro %}
