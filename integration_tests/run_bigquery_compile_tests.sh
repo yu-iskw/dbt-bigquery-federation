@@ -18,20 +18,26 @@ done
 DBT_CMD="${DBT_CMD:-dbt}"
 
 # Parse the full project using dbt-bigquery. This validates profile loading,
-# adapter registration, package parsing, and macro signatures without touching GCP.
+# adapter registration, package parsing, macro signatures, and model parsing
+# without opening a BigQuery connection.
 "${DBT_CMD}" parse --profiles-dir profiles --target "${TARGET}"
 
-# Compile only pinned federation models. These exercise the real BigQuery adapter
-# and BigQuery materialization context while deliberately avoiding live metadata
-# discovery and warehouse access in credential-free CI.
-"${DBT_CMD}" compile \
+# dbt-bigquery's `dbt compile` opens a warehouse connection as part of
+# materialization compilation, even when the selected federation models use
+# pinned metadata only. A credential-free CI lane therefore cannot use
+# `dbt compile` without conflating adapter compatibility with GCP auth.
+#
+# Instead, execute the pure pinned federation rendering contract through
+# dbt-bigquery's Jinja/adapter context. This proves the package macros dispatch
+# and render the expected EXTERNAL_QUERY SQL without touching the warehouse.
+"${DBT_CMD}" run-operation test_federated_relation_renders_passthrough \
+  --profiles-dir profiles \
+  --target "${TARGET}"
+
+# Exercise the public inspection path as another adapter-aware, warehouse-free
+# operation. It must resolve the configured BigQuery connection resource and
+# plan from pinned metadata only.
+"${DBT_CMD}" run-operation federation_inspect \
   --profiles-dir profiles \
   --target "${TARGET}" \
-  --select stg_federated_orders stg_federated_orders_table
-
-for model in stg_federated_orders stg_federated_orders_table; do
-  compiled="target/compiled/dbt_bigquery_federation_integration_tests/models/federation/${model}.sql"
-  test -f "${compiled}"
-  grep -q "EXTERNAL_QUERY" "${compiled}"
-  grep -q "projects/example/locations/us/connections/application-pg" "${compiled}"
-done
+  --args '{connection: application_pg, schema: public, table: orders}'
