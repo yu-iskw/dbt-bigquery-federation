@@ -1,0 +1,38 @@
+name: Format RFC branch
+
+on:
+  push:
+    branches:
+      - automation/trunk-format-rfc
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RFC branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: rfc-0001-bigquery-federation-architecture
+
+      - name: Format with Trunk
+        continue-on-error: true
+        uses: trunk-io/trunk-action@75699af9e26881e564e9d832ef7dc3af25ec031b # v1.2.4
+        with:
+          post-init: |
+            "${TRUNK_PATH}" fmt README.md integration_tests/pyproject.toml integration_tests/run_bigquery_compile_tests.sh
+
+      - name: Commit formatter output
+        if: always()
+        run: |
+          if git diff --quiet; then
+            echo "No formatter changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md integration_tests/pyproject.toml integration_tests/run_bigquery_compile_tests.sh
+          git commit -m "Format files with Trunk"
+          git push origin HEAD:rfc-0001-bigquery-federation-architecture
