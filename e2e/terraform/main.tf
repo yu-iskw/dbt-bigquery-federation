@@ -32,7 +32,6 @@ module "alloydb" {
   source = "./modules/alloydb"
 
   project_id             = var.project_id
-  project_number         = data.google_project.current.number
   region                 = var.region
   name_prefix            = var.name_prefix
   runner_principal       = var.runner_principal
