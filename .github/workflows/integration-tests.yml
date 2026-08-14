@@ -71,6 +71,75 @@ jobs:
             integration_tests/logs
             integration_tests/target
 
+  bigquery-emulator:
+    name: bigquery emulator (${{ matrix.dbt-group }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dbt-group: ["dbt-bigquery-1-10", "dbt-bigquery-1-11"]
+    defaults:
+      run:
+        working-directory: integration_tests
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "integration_tests/pyproject.toml"
+          python-version: "3.12"
+
+      - name: Start BigQuery emulator
+        working-directory: .
+        run: |
+          docker run -d --rm \
+            --name bigquery-emulator \
+            -p 9050:9050 \
+            -p 9060:9060 \
+            ghcr.io/goccy/bigquery-emulator:0.8.1 \
+            --project=dbt-bigquery-federation-ci \
+            --dataset=dbt_bigquery_federation_ci
+          for _ in {1..30}; do
+            if curl --fail --silent \
+              "http://127.0.0.1:9050/bigquery/v2/projects/dbt-bigquery-federation-ci/datasets" \
+              >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs bigquery-emulator
+          exit 1
+
+      - name: Compile with dbt-bigquery against emulator
+        env:
+          DBT_BIGQUERY_PROJECT: dbt-bigquery-federation-ci
+          DBT_BIGQUERY_DATASET: dbt_bigquery_federation_ci
+          DBT_BIGQUERY_LOCATION: US
+          DBT_BIGQUERY_API_ENDPOINT: http://127.0.0.1:9050
+          DBT_BIGQUERY_TOKEN: bigquery-emulator
+        run: |
+          mkdir -p target
+          uv run nox -s "bigquery_emulator_tests(uv_group='${{ matrix.dbt-group }}')"
+
+      - name: Show emulator logs on failure
+        if: failure()
+        working-directory: .
+        run: docker logs bigquery-emulator || true
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bigquery-emulator-logs-${{ matrix.dbt-group }}
+          retention-days: 3
+          path: |
+            integration_tests/logs
+            integration_tests/target
+
   fusion:
     runs-on: ubuntu-latest
     continue-on-error: true

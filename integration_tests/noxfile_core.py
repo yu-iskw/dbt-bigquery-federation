@@ -12,7 +12,7 @@ if _spec is None or _spec.loader is None:
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
-from nox_helpers import ADAPTERS, get_dbt_command, install_dependencies, run_dbt_shell_script
+from nox_helpers import ADAPTERS, build_env, get_dbt_command, install_dependencies, run_dbt_shell_script, run_deps
 
 nox.options.sessions = ["dev_unit_tests", "dev_integration_tests"]
 nox.options.default_venv_backend = "uv"
@@ -20,6 +20,7 @@ nox.options.default_venv_backend = "uv"
 PYTHON_VERSIONS = ["3.10", "3.11", "3.12"]
 LOCAL_DBT_GROUPS = ["dbt-core-1-10", "dbt-core-1-11"]
 SETUP_DBT_GROUPS = ["dbt-core-1-10", "dbt-core-1-11"]
+BIGQUERY_DBT_GROUPS = ["dbt-bigquery-1-10", "dbt-bigquery-1-11"]
 
 
 @nox.session(python="3.12")
@@ -48,6 +49,24 @@ def unit_tests(session, uv_group, adapter):
 def integration_tests(session, uv_group, adapter):
     """Run dbt build for the example project for a dbt-core line and adapter."""
     run_dbt_shell_script(session, uv_group, adapter, "run_integration_tests.sh")
+
+
+@nox.session(python="3.12")
+@nox.parametrize("uv_group", BIGQUERY_DBT_GROUPS)
+def bigquery_emulator_tests(session, uv_group):
+    """Run dbt-bigquery debug/parse/compile against bigquery-emulator."""
+    install_dependencies(session, uv_group)
+    dbt_cmd = get_dbt_command(session, uv_group)
+    env = build_env(session, uv_group, "bigquery", dbt_cmd)
+    run_deps(session, dbt_cmd, "bigquery", env)
+    session.run(
+        "bash",
+        "run_bigquery_compile_tests.sh",
+        "--target",
+        "bigquery",
+        env=env,
+        external=True,
+    )
 
 
 @nox.session(python=PYTHON_VERSIONS)
