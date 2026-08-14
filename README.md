@@ -26,7 +26,7 @@ Both providers share the PostgreSQL metadata/dialect/type profile while remainin
 vars:
   dbt_bigquery_federation:
     metadata:
-      mode: auto  # auto | live | pinned
+      mode: auto # auto | live | pinned
 
     connections:
       application_pg:
