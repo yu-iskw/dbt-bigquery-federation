@@ -5,6 +5,7 @@ on:
       - main
     paths:
       - .github/workflows/integration-tests.yml
+      - dev/test_all.sh
       - macros/**/*
       - integration_tests/**/*
       - dbt_project.yml
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/integration-tests.yml
+      - dev/test_all.sh
       - macros/**/*
       - integration_tests/**/*
       - dbt_project.yml
@@ -29,29 +31,6 @@ jobs:
   integration:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dbt-group: ["dbt-core-1-10", "dbt-core-1-11"]
-        adapter: ["postgres"]
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: dbt_package_template
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d dbt_package_template"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    defaults:
-      run:
-        working-directory: integration_tests
-        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -61,181 +40,15 @@ jobs:
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
-          cache-dependency-glob: "integration_tests/pyproject.toml"
-      - name: Install supported Python versions
-        run: uv python install 3.10 3.11 3.12
-      - name: Prepare dbt packages once
-        env:
-          NOX_SPEC: nox[uv]==2026.7.11
-        run: >-
-          uvx --from "${NOX_SPEC}" nox -s
-          "prepare_packages(adapter='${{ matrix.adapter }}', uv_group='${{ matrix.dbt-group }}')"
-      - name: Run integration tests across Python versions in parallel
-        env:
-          DBT_POSTGRES_HOST: localhost
-          DBT_POSTGRES_PORT: "5432"
-          DBT_POSTGRES_USER: postgres
-          DBT_POSTGRES_PASSWORD: postgres
-          DBT_POSTGRES_DATABASE: dbt_package_template
-          DBT_POSTGRES_SCHEMA: dbt_package_template
-          DBT_GROUP: ${{ matrix.dbt-group }}
-          ADAPTER: ${{ matrix.adapter }}
-          NOX_SPEC: nox[uv]==2026.7.11
-          DBT_SKIP_DEPS: "1"
-        run: |
-          set -euo pipefail
-          mkdir -p target logs
-          run_version() {
-            local version="$1"
-            export DBT_TARGET_PATH="target/${version}"
-            export DBT_LOG_PATH="logs/${version}"
-            rm -rf "${DBT_TARGET_PATH}" "${DBT_LOG_PATH}"
-            uvx --from "${NOX_SPEC}" nox -s \
-              "unit_tests-${version}(adapter='${ADAPTER}', uv_group='${DBT_GROUP}')" \
-              "integration_tests-${version}(adapter='${ADAPTER}', uv_group='${DBT_GROUP}')"
-          }
-          export -f run_version
-          export DBT_GROUP ADAPTER NOX_SPEC DBT_SKIP_DEPS
-          printf '%s\0' 3.10 3.11 3.12 \
-            | xargs -0 -P "$(nproc)" -I{} bash -c 'run_version "$1"' _ {}
+          cache-dependency-glob: "integration_tests/uv.lock"
+      - name: Run complete compatibility suite
+        run: make test-all
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: integration-logs-${{ matrix.dbt-group }}-${{ matrix.adapter }}
+          name: integration-logs
           retention-days: 3
           path: |
             integration_tests/logs
             integration_tests/target
-
-  bigquery-emulator:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-    name: bigquery emulator (${{ matrix.dbt-group }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dbt-group: ["dbt-bigquery-1-10", "dbt-bigquery-1-11"]
-    defaults:
-      run:
-        working-directory: integration_tests
-        shell: bash
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "integration_tests/pyproject.toml"
-          python-version: "3.12"
-      - name: Start BigQuery emulator
-        working-directory: .
-        run: |
-          docker run -d --rm \
-            --name bigquery-emulator \
-            -p 9050:9050 \
-            -p 9060:9060 \
-            ghcr.io/goccy/bigquery-emulator:0.8.1 \
-            --project=dbt-bigquery-federation-ci \
-            --dataset=dbt_bigquery_federation_ci
-          for _ in {1..30}; do
-            if curl --fail --silent \
-              "http://127.0.0.1:9050/bigquery/v2/projects/dbt-bigquery-federation-ci/datasets" \
-              >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs bigquery-emulator
-          exit 1
-      - name: Compile with dbt-bigquery against emulator
-        env:
-          DBT_BIGQUERY_PROJECT: dbt-bigquery-federation-ci
-          DBT_BIGQUERY_DATASET: dbt_bigquery_federation_ci
-          DBT_BIGQUERY_LOCATION: US
-          DBT_BIGQUERY_API_ENDPOINT: http://127.0.0.1:9050
-        run: |
-          mkdir -p target
-          uv run nox -s "bigquery_emulator_tests(uv_group='${{ matrix.dbt-group }}')"
-      - name: Show emulator logs on failure
-        if: failure()
-        working-directory: .
-        run: docker logs bigquery-emulator || true
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: bigquery-emulator-logs-${{ matrix.dbt-group }}
-          retention-days: 3
-          path: |
-            integration_tests/logs
-            integration_tests/target
-
-  fusion:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: dbt_package_template
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d dbt_package_template"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    defaults:
-      run:
-        working-directory: integration_tests
-        shell: bash
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "integration_tests/pyproject.toml"
-      - name: Install supported Python versions
-        run: uv python install 3.10 3.11 3.12
-      - name: Prepare dbt packages once
-        env:
-          NOX_SPEC: nox[uv]==2026.7.11
-        run: uvx --from "${NOX_SPEC}" nox -f noxfile_fusion.py -s prepare_packages_fusion
-      - name: Run Fusion tests across Python versions in parallel
-        env:
-          DBT_POSTGRES_HOST: localhost
-          DBT_POSTGRES_PORT: "5432"
-          DBT_POSTGRES_USER: postgres
-          DBT_POSTGRES_PASSWORD: postgres
-          DBT_POSTGRES_DATABASE: dbt_package_template
-          DBT_POSTGRES_SCHEMA: dbt_package_template
-          DBT_ALLOW_EXPERIMENTAL_ADAPTERS: "true"
-          NOX_SPEC: nox[uv]==2026.7.11
-          DBT_SKIP_DEPS: "1"
-        run: |
-          set -euo pipefail
-          mkdir -p target logs
-          run_version() {
-            local version="$1"
-            export DBT_TARGET_PATH="target/fusion-${version}"
-            export DBT_LOG_PATH="logs/fusion-${version}"
-            rm -rf "${DBT_TARGET_PATH}" "${DBT_LOG_PATH}"
-            uvx --from "${NOX_SPEC}" nox -f noxfile_fusion.py -s \
-              "fusion_unit_tests-${version}" \
-              "fusion_integration_tests-${version}"
-          }
-          export -f run_version
-          export NOX_SPEC DBT_SKIP_DEPS
-          printf '%s\0' 3.10 3.11 3.12 \
-            | xargs -0 -P "$(nproc)" -I{} bash -c 'run_version "$1"' _ {}
