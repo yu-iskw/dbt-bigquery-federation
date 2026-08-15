@@ -9,7 +9,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dbt_harness_parse_args "$@"
 dbt_harness_cd
 
-"${dbt_cmd}" deps --profiles-dir "${dbt_profiles_dir}" --target "${dbt_target}"
+if [[ "${DBT_SKIP_DEPS:-0}" != "1" ]]; then
+  "${dbt_cmd}" deps --profiles-dir "${dbt_profiles_dir}" --target "${dbt_target}"
+fi
 "${dbt_cmd}" run-operation test_macros \
   --profiles-dir "${dbt_profiles_dir}" \
   --target "${dbt_target}"
