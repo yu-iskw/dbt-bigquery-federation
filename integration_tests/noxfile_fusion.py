@@ -16,7 +16,7 @@ if _spec is None or _spec.loader is None:
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
-from nox_helpers import ADAPTERS, FUSION_GROUP, get_dbt_command, install_dependencies, run_dbt_shell_script
+from nox_helpers import ADAPTERS, FUSION_GROUP, get_dbt_command, install_dependencies, prepare_dbt_packages, run_dbt_shell_script
 
 FUSION_PYTHON = "3.12"
 PYTHON_VERSIONS = ["3.10", "3.11", "3.12"]
@@ -35,6 +35,13 @@ def dev_unit_tests_fusion(session):
 def dev_integration_tests_fusion(session):
     """Run the starter integration tests quickly through dbt Fusion."""
     fusion_integration_tests(session)
+
+
+@nox.session(python=FUSION_PYTHON)
+def prepare_packages_fusion(session):
+    """Fetch dbt packages once before parallel Fusion sessions."""
+    for adapter in ADAPTERS:
+        prepare_dbt_packages(session, FUSION_GROUP, adapter)
 
 
 @nox.session(python=PYTHON_VERSIONS)
