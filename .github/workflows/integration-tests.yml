@@ -32,7 +32,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.10","3.11","3.12"]') }}
         dbt-group: ["dbt-core-1-10", "dbt-core-1-11"]
         adapter: ["postgres"]
     services:
@@ -63,8 +62,15 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "integration_tests/pyproject.toml"
-          python-version: ${{ matrix.python-version }}
-      - name: Run integration tests
+      - name: Install supported Python versions
+        run: uv python install 3.10 3.11 3.12
+      - name: Prepare dbt packages once
+        env:
+          NOX_SPEC: nox[uv]==2026.7.11
+        run: >-
+          uvx --from "${NOX_SPEC}" nox -s
+          "prepare_packages(adapter='${{ matrix.adapter }}', uv_group='${{ matrix.dbt-group }}')"
+      - name: Run integration tests across Python versions in parallel
         env:
           DBT_POSTGRES_HOST: localhost
           DBT_POSTGRES_PORT: "5432"
@@ -72,15 +78,31 @@ jobs:
           DBT_POSTGRES_PASSWORD: postgres
           DBT_POSTGRES_DATABASE: dbt_package_template
           DBT_POSTGRES_SCHEMA: dbt_package_template
+          DBT_GROUP: ${{ matrix.dbt-group }}
+          ADAPTER: ${{ matrix.adapter }}
+          NOX_SPEC: nox[uv]==2026.7.11
+          DBT_SKIP_DEPS: "1"
         run: |
-          mkdir -p target
-          uv run nox -s "unit_tests-${{ matrix.python-version }}(adapter='${{ matrix.adapter }}', uv_group='${{ matrix.dbt-group }}')"
-          uv run nox -s "integration_tests-${{ matrix.python-version }}(adapter='${{ matrix.adapter }}', uv_group='${{ matrix.dbt-group }}')"
+          set -euo pipefail
+          mkdir -p target logs
+          run_version() {
+            local version="$1"
+            export DBT_TARGET_PATH="target/${version}"
+            export DBT_LOG_PATH="logs/${version}"
+            rm -rf "${DBT_TARGET_PATH}" "${DBT_LOG_PATH}"
+            uvx --from "${NOX_SPEC}" nox -s \
+              "unit_tests-${version}(adapter='${ADAPTER}', uv_group='${DBT_GROUP}')" \
+              "integration_tests-${version}(adapter='${ADAPTER}', uv_group='${DBT_GROUP}')"
+          }
+          export -f run_version
+          export DBT_GROUP ADAPTER NOX_SPEC DBT_SKIP_DEPS
+          printf '%s\0' 3.10 3.11 3.12 \
+            | xargs -0 -P "$(nproc)" -I{} bash -c 'run_version "$1"' _ {}
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: integration-logs-${{ matrix.python-version }}-${{ matrix.dbt-group }}-${{ matrix.adapter }}
+          name: integration-logs-${{ matrix.dbt-group }}-${{ matrix.adapter }}
           retention-days: 3
           path: |
             integration_tests/logs
@@ -156,10 +178,6 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.10","3.11","3.12"]') }}
     services:
       postgres:
         image: postgres:16
@@ -188,8 +206,13 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "integration_tests/pyproject.toml"
-          python-version: ${{ matrix.python-version }}
-      - name: Run Fusion tests
+      - name: Install supported Python versions
+        run: uv python install 3.10 3.11 3.12
+      - name: Prepare dbt packages once
+        env:
+          NOX_SPEC: nox[uv]==2026.7.11
+        run: uvx --from "${NOX_SPEC}" nox -f noxfile_fusion.py -s prepare_packages_fusion
+      - name: Run Fusion tests across Python versions in parallel
         env:
           DBT_POSTGRES_HOST: localhost
           DBT_POSTGRES_PORT: "5432"
@@ -198,7 +221,21 @@ jobs:
           DBT_POSTGRES_DATABASE: dbt_package_template
           DBT_POSTGRES_SCHEMA: dbt_package_template
           DBT_ALLOW_EXPERIMENTAL_ADAPTERS: "true"
+          NOX_SPEC: nox[uv]==2026.7.11
+          DBT_SKIP_DEPS: "1"
         run: |
-          mkdir -p target
-          uv run nox -f noxfile_fusion.py -s "fusion_unit_tests-${{ matrix.python-version }}"
-          uv run nox -f noxfile_fusion.py -s "fusion_integration_tests-${{ matrix.python-version }}"
+          set -euo pipefail
+          mkdir -p target logs
+          run_version() {
+            local version="$1"
+            export DBT_TARGET_PATH="target/fusion-${version}"
+            export DBT_LOG_PATH="logs/fusion-${version}"
+            rm -rf "${DBT_TARGET_PATH}" "${DBT_LOG_PATH}"
+            uvx --from "${NOX_SPEC}" nox -f noxfile_fusion.py -s \
+              "fusion_unit_tests-${version}" \
+              "fusion_integration_tests-${version}"
+          }
+          export -f run_version
+          export NOX_SPEC DBT_SKIP_DEPS
+          printf '%s\0' 3.10 3.11 3.12 \
+            | xargs -0 -P "$(nproc)" -I{} bash -c 'run_version "$1"' _ {}
