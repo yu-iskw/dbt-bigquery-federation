@@ -9,7 +9,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dbt_harness_parse_args "$@"
 dbt_harness_cd
 
-"${dbt_cmd}" deps --profiles-dir "${dbt_profiles_dir}" --target "${dbt_target}"
+if [[ "${DBT_SKIP_DEPS:-0}" != "1" ]]; then
+  "${dbt_cmd}" deps --profiles-dir "${dbt_profiles_dir}" --target "${dbt_target}"
+fi
 "${dbt_cmd}" build --profiles-dir "${dbt_profiles_dir}" \
   --target "${dbt_target}" \
   --exclude federation \
@@ -18,7 +20,8 @@ dbt_harness_cd
   --target "${dbt_target}" \
   --select federation
 
-compiled_dir="${ROOT}/target/compiled/dbt_bigquery_federation_integration_tests/models/federation"
+target_path="${DBT_TARGET_PATH:-target}"
+compiled_dir="${ROOT}/${target_path}/compiled/dbt_bigquery_federation_integration_tests/models/federation"
 for compiled_model in \
   "${compiled_dir}/stg_federated_orders.sql" \
   "${compiled_dir}/stg_federated_orders_table.sql" \
