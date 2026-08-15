@@ -17,6 +17,7 @@ from nox_helpers import (  # isort: skip  # noqa: E402
     build_env,
     get_dbt_command,
     install_dependencies,
+    prepare_dbt_packages,
     run_dbt_shell_script,
     run_deps,
 )
@@ -40,6 +41,14 @@ def dev_unit_tests(session):
 def dev_integration_tests(session):
     """Run the starter integration tests quickly on Postgres."""
     integration_tests(session, "dbt-core-1-10", "postgres")
+
+
+@nox.session(python="3.12")
+@nox.parametrize("uv_group", LOCAL_DBT_GROUPS)
+@nox.parametrize("adapter", ADAPTERS)
+def prepare_packages(session, uv_group, adapter):
+    """Fetch dbt packages once before parallel Python-version sessions."""
+    prepare_dbt_packages(session, uv_group, adapter)
 
 
 @nox.session(python=PYTHON_VERSIONS)
