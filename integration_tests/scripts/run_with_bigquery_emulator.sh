@@ -34,7 +34,8 @@ docker run -d --rm \
 started_at="$(date +%s)"
 while ! curl --fail --silent \
   "http://127.0.0.1:9050/bigquery/v2/projects/${PROJECT}/datasets" >/dev/null; do
-  if (( "$(date +%s)" - started_at >= WAIT_SECONDS )); then
+  now="$(date +%s)"
+  if ((now - started_at >= WAIT_SECONDS)); then
     echo "Timed out waiting for BigQuery emulator after ${WAIT_SECONDS}s." >&2
     exit 1
   fi
