@@ -30,8 +30,8 @@ jobs:
     name: Trunk Check Runner
     runs-on: ubuntu-latest
     permissions:
-      checks: write # For trunk to post annotations
-      contents: read # For repo checkout
+      checks: write
+      contents: read
 
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -41,7 +41,5 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-      # This package is Python/dbt, not Node. Trunk linters use hermetic runtimes
-      # from .trunk/trunk.yaml, so no pnpm/Node install or build step is required.
       - name: Trunk Check
         uses: trunk-io/trunk-action@75699af9e26881e564e9d832ef7dc3af25ec031b # v1.2.4

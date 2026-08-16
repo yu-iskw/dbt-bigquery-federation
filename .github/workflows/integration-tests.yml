@@ -3,13 +3,26 @@ on:
   push:
     branches:
       - main
-  pull_request:
     paths:
       - .github/workflows/integration-tests.yml
+      - dev/test_all.sh
       - macros/**/*
       - integration_tests/**/*
       - dbt_project.yml
       - Makefile
+  pull_request:
+    paths:
+      - .github/workflows/integration-tests.yml
+      - dev/test_all.sh
+      - macros/**/*
+      - integration_tests/**/*
+      - dbt_project.yml
+      - Makefile
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -17,185 +30,24 @@ permissions:
 jobs:
   integration:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-        dbt-group: ["dbt-core-1-10", "dbt-core-1-11"]
-        adapter: ["postgres"]
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: dbt_package_template
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d dbt_package_template"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    defaults:
-      run:
-        working-directory: integration_tests
-        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-
       - name: Install uv
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
-          cache-dependency-glob: "integration_tests/pyproject.toml"
-          python-version: ${{ matrix.python-version }}
-
-      - name: Run integration tests
-        env:
-          DBT_POSTGRES_HOST: localhost
-          DBT_POSTGRES_PORT: "5432"
-          DBT_POSTGRES_USER: postgres
-          DBT_POSTGRES_PASSWORD: postgres
-          DBT_POSTGRES_DATABASE: dbt_package_template
-          DBT_POSTGRES_SCHEMA: dbt_package_template
-        run: |
-          mkdir -p target
-          uv run nox -s "unit_tests-${{ matrix.python-version }}(adapter='${{ matrix.adapter }}', uv_group='${{ matrix.dbt-group }}')"
-          uv run nox -s "integration_tests-${{ matrix.python-version }}(adapter='${{ matrix.adapter }}', uv_group='${{ matrix.dbt-group }}')"
-
+          cache-dependency-glob: "integration_tests/uv.lock"
+      - name: Run complete compatibility suite
+        run: make test-all
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: integration-logs-${{ matrix.python-version }}-${{ matrix.dbt-group }}-${{ matrix.adapter }}
+          name: integration-logs
           retention-days: 3
           path: |
             integration_tests/logs
             integration_tests/target
-
-  bigquery-emulator:
-    name: bigquery emulator (${{ matrix.dbt-group }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dbt-group: ["dbt-bigquery-1-10", "dbt-bigquery-1-11"]
-    defaults:
-      run:
-        working-directory: integration_tests
-        shell: bash
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "integration_tests/pyproject.toml"
-          python-version: "3.12"
-
-      - name: Start BigQuery emulator
-        working-directory: .
-        run: |
-          docker run -d --rm \
-            --name bigquery-emulator \
-            -p 9050:9050 \
-            -p 9060:9060 \
-            ghcr.io/goccy/bigquery-emulator:0.8.1 \
-            --project=dbt-bigquery-federation-ci \
-            --dataset=dbt_bigquery_federation_ci
-          for _ in {1..30}; do
-            if curl --fail --silent \
-              "http://127.0.0.1:9050/bigquery/v2/projects/dbt-bigquery-federation-ci/datasets" \
-              >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs bigquery-emulator
-          exit 1
-
-      - name: Compile with dbt-bigquery against emulator
-        env:
-          DBT_BIGQUERY_PROJECT: dbt-bigquery-federation-ci
-          DBT_BIGQUERY_DATASET: dbt_bigquery_federation_ci
-          DBT_BIGQUERY_LOCATION: US
-          DBT_BIGQUERY_API_ENDPOINT: http://127.0.0.1:9050
-        run: |
-          mkdir -p target
-          uv run nox -s "bigquery_emulator_tests(uv_group='${{ matrix.dbt-group }}')"
-
-      - name: Show emulator logs on failure
-        if: failure()
-        working-directory: .
-        run: docker logs bigquery-emulator || true
-
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: bigquery-emulator-logs-${{ matrix.dbt-group }}
-          retention-days: 3
-          path: |
-            integration_tests/logs
-            integration_tests/target
-
-  fusion:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: dbt_package_template
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d dbt_package_template"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    defaults:
-      run:
-        working-directory: integration_tests
-        shell: bash
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "integration_tests/pyproject.toml"
-          python-version: ${{ matrix.python-version }}
-
-      - name: Run Fusion tests
-        env:
-          DBT_POSTGRES_HOST: localhost
-          DBT_POSTGRES_PORT: "5432"
-          DBT_POSTGRES_USER: postgres
-          DBT_POSTGRES_PASSWORD: postgres
-          DBT_POSTGRES_DATABASE: dbt_package_template
-          DBT_POSTGRES_SCHEMA: dbt_package_template
-          # Fusion preview treats postgres as experimental (dbt1005).
-          DBT_ALLOW_EXPERIMENTAL_ADAPTERS: "true"
-        run: |
-          mkdir -p target
-          uv run nox -f noxfile_fusion.py -s "fusion_unit_tests-${{ matrix.python-version }}"
-          uv run nox -f noxfile_fusion.py -s "fusion_integration_tests-${{ matrix.python-version }}"
