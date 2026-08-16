@@ -18,8 +18,7 @@ dbt_harness_cd
   --target "${dbt_target}" \
   --select federation
 
-target_path="${DBT_TARGET_PATH:-target}"
-compiled_dir="${ROOT}/${target_path}/compiled/dbt_bigquery_federation_integration_tests/models/federation"
+compiled_dir="${ROOT}/target/compiled/dbt_bigquery_federation_integration_tests/models/federation"
 for compiled_model in \
   "${compiled_dir}/stg_federated_orders.sql" \
   "${compiled_dir}/stg_federated_orders_table.sql" \
