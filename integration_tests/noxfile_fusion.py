@@ -12,7 +12,13 @@ if _spec is None or _spec.loader is None:
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
-from nox_helpers import ADAPTERS, FUSION_GROUP, get_dbt_command, install_dependencies, run_dbt_shell_script
+from nox_helpers import (  # isort: skip  # noqa: E402
+    ADAPTERS,
+    FUSION_GROUP,
+    get_dbt_command,
+    install_dependencies,
+    run_dbt_shell_script,
+)
 
 FUSION_PYTHON = "3.12"
 PYTHON_VERSIONS = ["3.10", "3.11", "3.12"]
