@@ -14,7 +14,7 @@ fi
 
 cleanup() {
 	local exit_code="$?"
-	if [[ "${exit_code}" -ne 0 ]]; then
+	if [[ $exit_code -ne 0 ]]; then
 		docker logs "${CONTAINER_NAME}" || true
 	fi
 	docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
