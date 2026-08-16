@@ -31,7 +31,7 @@ test-integration:
 .PHONY: test-all
 test-all:
 	integration_tests/scripts/run_with_postgres_container.sh \
-		./scripts/run_with_bigquery_emulator.sh \
+		bash ./scripts/run_with_bigquery_emulator.sh \
 		uv run bash ../dev/test_all.sh
 
 test: run-unit-tests run-integration-tests
