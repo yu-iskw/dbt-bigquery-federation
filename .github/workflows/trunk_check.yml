@@ -44,4 +44,4 @@ jobs:
       # This package is Python/dbt, not Node. Trunk linters use hermetic runtimes
       # from .trunk/trunk.yaml, so no pnpm/Node install or build step is required.
       - name: Trunk Check
-        uses: trunk-io/trunk-action@75699af9e26881e564e9d832ef7dc3af25ec031b # v1.2.4
+        uses: trunk-io/trunk-action@04ba50e7658c81db7356da96657e6e77f220bfa3 # v1.3.1
