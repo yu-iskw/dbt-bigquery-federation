@@ -64,15 +64,18 @@
     {% do _assert_e2e_column_action(planned.plan, col_name, 'remote_cast') %}
   {% endfor %}
 
-  {% set relation_sql = dbt_bigquery_federation.federated_relation(
-    'analytics_alloydb', 'type_matrix', 'public', none, none, 'live'
+  {% set relation_sql = dbt_bigquery_federation._federation_render_external_query(
+    planned.plan.connection_id,
+    planned.plan.remote_sql,
+    planned.plan.decimal_option,
+    planned.plan.get('query_execution_priority')
   ) %}
   {% set rows = run_query(
     "select id, col_boolean, cast(col_numeric as string) as col_numeric, col_text, col_uuid, col_jsonb, col_inet from "
     ~ relation_sql
   ) %}
   {% if rows is none or rows.rows | length != 1 %}
-    {{ exceptions.raise_compiler_error('AlloyDB type_matrix federated_relation expected 1 row') }}
+    {{ exceptions.raise_compiler_error('AlloyDB type_matrix live EXTERNAL_QUERY expected 1 row') }}
   {% endif %}
   {% set row = rows.rows[0] %}
   {% do dbt_unittest.assert_equals(row[0] | int, 1) %}
@@ -109,15 +112,18 @@
     {% do _assert_e2e_column_action(planned.plan, col_name, 'passthrough') %}
   {% endfor %}
 
-  {% set relation_sql = dbt_bigquery_federation.federated_relation(
-    'spanner_app', 'TypeMatrix', '', none, none, 'live'
+  {% set relation_sql = dbt_bigquery_federation._federation_render_external_query(
+    planned.plan.connection_id,
+    planned.plan.remote_sql,
+    planned.plan.decimal_option,
+    planned.plan.get('query_execution_priority')
   ) %}
   {% set rows = run_query(
     "select Id, ColBool, cast(ColNumeric as string) as ColNumeric, ColString, to_json_string(ColJson) as ColJson, array_length(ColArray) as array_len from "
     ~ relation_sql
   ) %}
   {% if rows is none or rows.rows | length != 1 %}
-    {{ exceptions.raise_compiler_error('Spanner TypeMatrix federated_relation expected 1 row') }}
+    {{ exceptions.raise_compiler_error('Spanner TypeMatrix live EXTERNAL_QUERY expected 1 row') }}
   {% endif %}
   {% set row = rows.rows[0] %}
   {% do dbt_unittest.assert_equals(row[0] | int, 1) %}

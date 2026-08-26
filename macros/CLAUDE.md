@@ -48,8 +48,10 @@ Reference: [About dispatch config](https://docs.getdbt.com/reference/dbt-jinja-f
 
 Keep extraction and SQL generation decoupled:
 
-1. **Layer 1 (extract):** `_federation_try_get_remote_columns` / pin load → normalized column IR.
+1. **Layer 1 (extract):** `_federation_try_get_remote_columns` (operations) / pin load (models) → normalized column IR.
 2. **Layer 2 (plan + render):** `_federation_try_plan_columns` → remote SQL → `_federation_render_external_query`.
+
+`federated_relation` MUST load pins only and MUST NOT call `run_query`. `_federation_try_plan_live` is reserved for inspect/generate/validate/e2e helpers.
 
 The IR contract is [`docs/federation/normalized-column-ir.md`](../docs/federation/normalized-column-ir.md). Planner unit tests MUST feed IR fixtures into `_federation_try_plan_columns` and MUST NOT live-discover schemas.
 

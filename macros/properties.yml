@@ -3,10 +3,11 @@ version: 2
 macros:
   - name: federated_relation
     description: >
-      Returns a BigQuery EXTERNAL_QUERY table expression. In metadata_mode=auto,
-      a declared pin is preferred; otherwise live remote metadata is discovered
-      during connected compilation. metadata_mode=pinned is fully deterministic
-      and metadata_mode=live always discovers the remote schema.
+      Returns a BigQuery EXTERNAL_QUERY table expression planned from a pin under
+      vars.dbt_bigquery_federation.tables (or root vars.yml on dbt 1.12+). Never
+      calls run_query. Live discovery belongs on federation_inspect /
+      federation_generate_pin / federation_validate. Missing pins fail with an
+      actionable compiler error.
     arguments:
       - name: connection
         type: string
@@ -28,7 +29,9 @@ macros:
         description: Optional mapping of column name to conversion override.
       - name: metadata_mode
         type: string
-        description: Optional metadata mode; auto, live, or pinned.
+        description: >
+          Optional compatibility argument. Only pinned (or omitted) is accepted.
+          live and auto raise a compiler error; use run-operation for discovery.
 
   - name: external_query
     description: >

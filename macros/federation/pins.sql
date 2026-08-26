@@ -2,6 +2,11 @@
   {{ return((connection | string) ~ '.' ~ (schema | string) ~ '.' ~ (table | string)) }}
 {% endmacro %}
 
+{% macro _federation_resolve_relation_schema(connection_cfg, schema=None) %}
+  {# schema is required at the call site; empty string is Spanner's default schema. #}
+  {{ return(schema) }}
+{% endmacro %}
+
 {% macro _federation_try_load_pin(connection, table, schema=None) %}
   {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection(connection) %}
   {% if not resolved.ok %}
@@ -26,7 +31,7 @@
   {% if key not in tables %}
     {{ return({
       'ok': false,
-      'error': 'Missing federation pin for connection ' ~ connection ~ ' key ' ~ key ~ '. Declare columns under vars.dbt_bigquery_federation.tables.',
+      'error': 'Missing federation pin for connection ' ~ connection ~ ' key ' ~ key ~ '. Declare columns under vars.dbt_bigquery_federation.tables (or root vars.yml on dbt 1.12+), or run-operation federation_generate_pin and commit the printed YAML.',
       'pin': none,
       'connection': none
     }) }}

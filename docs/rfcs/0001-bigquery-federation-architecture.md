@@ -1,8 +1,8 @@
 # RFC-0001: Automation-First BigQuery Federation for dbt
 
-- **Status:** Proposed (major revision)
+- **Status:** Accepted (artifact-first revision)
 - **Date:** 2026-08-14
-- **Revised:** 2026-08-14
+- **Revised:** 2026-08-26
 - **Package namespace:** `dbt_bigquery_federation`
 - **Target warehouse:** BigQuery
 - **Product objective:** make BigQuery federated queries instant to adopt and semi-automatic to operate from dbt
@@ -11,7 +11,7 @@
 
 ## 1. Executive summary
 
-`dbt_bigquery_federation` should make an operational table reachable from dbt with approximately one macro call:
+`dbt_bigquery_federation` should make an operational table reachable from dbt with approximately one macro call **after** a generated pin exists:
 
 ```sql
 select *
@@ -22,22 +22,24 @@ from {{ dbt_bigquery_federation.federated_relation(
 ) }}
 ```
 
-The package should automatically perform the work that users otherwise repeat by hand:
+The package automatically performs the work that users otherwise repeat by hand:
 
 1. resolve the BigQuery connection and remote provider;
-2. inspect the remote relation schema when discovery is enabled;
+2. inspect the remote relation schema in **run-operation** when discovery is requested;
 3. normalize provider-specific metadata into one internal column model;
 4. determine which source types BigQuery can federate natively;
 5. choose query-wide `EXTERNAL_QUERY` options when appropriate;
 6. generate remote casts for types that BigQuery cannot consume directly;
 7. apply user overrides where automatic conversion is not appropriate;
 8. render a BigQuery `EXTERNAL_QUERY(...)` table expression that composes with ordinary dbt models and materializations;
-9. optionally snapshot the discovered metadata into Git-reviewed pins;
+9. print generated pins so users can commit Git-reviewed IR under `vars` (or root `vars.yml` on dbt 1.12+);
 10. validate pinned metadata against the live source in CI or an explicit operation.
 
-The central decision of this RFC is:
+The central decision of this RFC (2026-08-26 revision) is:
 
-> **The package is automation-first. Live metadata discovery is a first-class capability and the default experience for getting started. Pinned metadata is an optional reproducibility and governance mode, not mandatory input. All modes reuse one provider/metadata/type-planning/rendering core.**
+> **The package is automation-first and artifact-first. Live metadata discovery is a first-class capability of operations (`federation_inspect`, `federation_generate_pin`, `federation_schema_diff`, `federation_validate`). `federated_relation` always plans from a committed pin and never calls `run_query`. All modes reuse one provider/metadata/type-planning/rendering core.**
+
+This supersedes the earlier hybrid that allowed `metadata_mode=live|auto` inside models. That path conflicted with dbt's compile/`docs generate` behavior: `execute` is `False` only during parse, while `run_query` still runs whenever compilation has a warehouse connection.
 
 The package MUST NOT introduce a custom materialization. Federation determines how rows are obtained from an external database; dbt's existing `view`, `table`, `incremental`, and `ephemeral` behavior remains responsible for persistence.
 
@@ -47,43 +49,29 @@ The architecture is:
                          user intent
               connection + schema + table
                               │
-                              ▼
-                   metadata-mode resolver
-                              │
-          ┌───────────────────┼────────────────────┐
-          │                   │                    │
-          ▼                   ▼                    ▼
-       live/auto            pinned              validate
-          │                   │                    │
-          │           declared metadata      live + declared
-          │                   │                    │
-          └───────────────────┼────────────────────┘
-                              ▼
-                    normalized schema model
-                              │
-                              ▼
-                      type-policy planner
-                              │
-                              ▼
-                       SQL plan selection
-                              │
-                ┌─────────────┼─────────────┐
-                ▼             ▼             ▼
-             native       query option    projection
-            SELECT *       widening       remote casts
-                └─────────────┼─────────────┘
-                              ▼
-                    BigQuery EXTERNAL_QUERY
-                              │
-                              ▼
-                    ordinary dbt model SQL
-                              │
-                 ┌────────────┼────────────┐
-                 ▼            ▼            ▼
-                view         table      incremental
+              ┌───────────────┴────────────────┐
+              ▼                                ▼
+     run-operation (live)              federated_relation
+     inspect / generate /              (pin only; no I/O)
+     diff / validate                           │
+              │                                │
+              ▼                                │
+     normalized column IR ◄────────────────────┘
+              │
+              ▼
+      type-policy planner
+              │
+              ▼
+       SQL plan selection
+              │
+              ▼
+    BigQuery EXTERNAL_QUERY
+              │
+              ▼
+    ordinary dbt model SQL
 ```
 
-A second important decision is that **schema stability and pushdown optimization are separate choices**. A remote `SELECT * FROM T` can preserve BigQuery's federation pushdown opportunities, but it does not isolate users from newly added remote columns. A stable/pinned projection does isolate the result schema, but may give up that optimization. The package must model and document this trade-off explicitly rather than claiming that one plan provides both guarantees.
+A second important decision is that **schema stability and pushdown optimization are separate choices**. A remote `SELECT * FROM T` can preserve BigQuery's federation pushdown opportunities, but it does not isolate users from newly added remote columns. A stable/pinned projection does isolate the result schema, but may give up that optimization. The package must model and document this trade-off explicitly rather than claiming that one plan provides both guarantees. Model-path pins use stable projection so the pin is a real runtime boundary.
 
 ---
 
@@ -116,10 +104,10 @@ provides limited value. The package should instead make federation a **dbt-nativ
 A new user should be able to:
 
 1. configure an existing BigQuery connection;
-2. name a remote table;
-3. run a dbt model successfully without manually copying the source schema into YAML;
-4. inspect the discovered schema and conversion decisions;
-5. later opt into generated pins and drift validation when reproducibility or governance requires it.
+2. run `federation_inspect` / `federation_generate_pin` against a remote table;
+3. commit the printed pin under `vars.dbt_bigquery_federation.tables` (or root `vars.yml` on dbt 1.12+);
+4. name that remote table in a dbt model via `federated_relation` without further metadata I/O;
+5. later re-run generate/diff/validate when the source schema changes.
 
 The happy path should require configuration comparable to:
 
@@ -130,6 +118,11 @@ vars:
       application_pg:
         connection_id: "{{ env_var('BQ_APP_PG_CONNECTION_ID') }}"
         provider: cloud_sql_postgres
+    tables:
+      application_pg.public.orders:
+        columns:
+          - name: id
+            data_type: bigint
 ```
 
 and model SQL comparable to:
@@ -143,20 +136,22 @@ from {{ dbt_bigquery_federation.federated_relation(
 ) }}
 ```
 
-No column-by-column YAML should be required for this first experience. Remote `schema` is always explicit at the call site (use `schema=''` for Spanner GoogleSQL's default schema).
+Column YAML is generated, not hand-authored. Remote `schema` is always explicit at the call site (use `schema=''` for Spanner GoogleSQL's default schema).
 
 ### 2.3 Product principles
 
-1. **Automation first.** Discover information that already exists instead of asking users to duplicate it.
-2. **Progressive governance.** Start live, then graduate to pins/validation where desired.
-3. **Explain every conversion.** Automatic behavior must remain inspectable.
-4. **Fail conservatively on unknown semantics.** Unknown source types are not silently guessed.
-5. **Prefer native BigQuery behavior.** Do not generate source casts when BigQuery can safely handle a type itself.
-6. **Do not own persistence.** Use existing dbt materializations.
-7. **Provider logic is explicit.** Remote-provider dispatch is separate from dbt adapter dispatch.
-8. **Performance trade-offs are observable.** Users should know when normalization prevents the `SELECT *` fast path.
-9. **No hidden infrastructure.** The package does not create connection resources or source databases.
-10. **One planning engine, multiple frontends.** Runtime macros, inspection, validation, and generated pins share the same normalized schema/type engine.
+1. **Automation first.** Discover information that already exists instead of asking users to duplicate it by hand.
+2. **Artifact-first models.** `federated_relation` plans only from committed IR; live discovery is an operation.
+3. **Progressive governance.** Generate pins, then validate drift in CI.
+4. **Explain every conversion.** Automatic behavior must remain inspectable.
+5. **Fail conservatively on unknown semantics.** Unknown source types are not silently guessed.
+6. **Prefer native BigQuery behavior.** Do not generate source casts when BigQuery can safely handle a type itself.
+7. **Do not own persistence.** Use existing dbt materializations.
+8. **Provider logic is explicit.** Remote-provider dispatch is separate from dbt adapter dispatch.
+9. **Performance trade-offs are observable.** Users should know when normalization prevents the `SELECT *` fast path.
+10. **No hidden infrastructure.** The package does not create connection resources or source databases.
+11. **One planning engine, multiple frontends.** Runtime macros, inspection, validation, and generated pins share the same normalized schema/type engine.
+12. **Honor dbt compile semantics.** Never rely on `{% if execute %}` to "skip" warehouse I/O during `compile` / `docs generate`.
 
 ---
 
@@ -166,21 +161,19 @@ No column-by-column YAML should be required for this first experience. Remote `s
 
 The package MUST eventually provide:
 
-1. a table-expression macro for federated relations;
-2. live schema discovery through BigQuery federation metadata queries;
+1. a table-expression macro for federated relations that plans from pins only;
+2. live schema discovery through BigQuery federation metadata queries in operations;
 3. automatic type planning and provider-aware source conversions;
 4. user-configurable conversion policies and per-column overrides;
-5. an automation-first `auto` metadata mode;
-6. an explicit `live` mode;
-7. a deterministic `pinned` mode;
-8. a `validate` mode / operation that compares pins with live metadata;
-9. source inspection and schema-diff operations;
-10. generated pins so users do not hand-author large schemas;
-11. provider support for Cloud SQL PostgreSQL, AlloyDB PostgreSQL, Cloud SQL MySQL, and Spanner;
-12. compatibility with normal dbt `view`, `table`, `incremental`, and `ephemeral` usage where the generated SQL is valid;
-13. real BigQuery compile coverage and real federation E2E coverage for supported providers;
-14. diagnostic output that explains type actions, lossiness, source projection, and pushdown eligibility;
-15. strong identifier/literal handling at every high-level API boundary.
+5. deterministic model compilation with no warehouse metadata I/O;
+6. generated pins so users do not hand-author large schemas;
+7. a `validate` operation that compares pins with live metadata;
+8. source inspection and schema-diff operations;
+9. provider support for Cloud SQL PostgreSQL, AlloyDB PostgreSQL, Cloud SQL MySQL, and Spanner;
+10. compatibility with normal dbt `view`, `table`, `incremental`, and `ephemeral` usage where the generated SQL is valid;
+11. real BigQuery compile coverage and real federation E2E coverage for supported providers;
+12. diagnostic output that explains type actions, lossiness, source projection, and pushdown eligibility;
+13. strong identifier/literal handling at every high-level API boundary.
 
 ### 3.2 Non-goals
 
@@ -201,56 +194,34 @@ A persistent shared metadata cache is also out of the first implementation unles
 
 ---
 
-## 4. Why the previous pin-only direction is insufficient
+## 4. Why live discovery inside `federated_relation` is insufficient
 
-A previous revision made pinned metadata mandatory and prohibited metadata access from `federated_relation`. That improves deterministic compilation, but it conflicts with the primary product objective.
+An earlier revision made live discovery the default model path (with parse stubs when `execute=false`). That improves first-run UX, but it conflicts with dbt's compile contract and with reproducible builds.
 
-### 4.1 It duplicates remote schemas
+### 4.1 `execute` does not protect compile/docs
 
-Requiring users to author:
+`execute` is `False` only during parse. `run_query` still runs during `dbt compile` and `dbt docs generate` when a warehouse connection is available. Model-path discovery therefore hits OLTP during ordinary compile workflows.
 
-```yaml
-columns:
-  - name: id
-    data_type: bigint
-  - name: user_uuid
-    data_type: uuid
-  - name: amount
-    data_type: numeric
-    precision: 30
-    scale: 8
-```
+### 4.2 Parse stubs diverge from executed SQL
 
-for a schema already available from `information_schema` creates avoidable setup and maintenance work.
+A `SELECT *` stub during parse and a planned projection during connected compile are different SQL texts for the same Git revision.
 
-### 4.2 It removes automatic schema catch-up
+### 4.3 Hand-authored pins without generation are still insufficient
 
-A user cannot benefit from source additions or type changes without manually updating pins.
+Requiring users to manually author large column lists duplicates remote schemas. Generation via `federation_generate_pin` is mandatory product UX; hand-authoring is not the happy path.
 
-### 4.3 Pin inspection is not source inspection
+### 4.4 Pin inspection is not source inspection
 
 An operation called `federation_inspect` should primarily tell users what exists remotely and what the package will do with it. Reading back YAML the user already wrote is useful for debugging, but it is not the primary inspection experience.
 
-### 4.4 Determinism is a requirement for some workflows, not all workflows
+### 4.5 Pin + `SELECT *` does not actually pin runtime schema
 
-A team performing interactive development may prefer live discovery. A compliance-heavy production job may prefer pins. The package should support both rather than make one team's governance constraint mandatory for every user.
+If a pin declares three columns but generated source SQL is `select * from public.orders`, a new fourth remote column is still returned at execution time. Therefore this RFC separates:
 
-### 4.5 Pin-only `SELECT *` does not actually pin runtime schema
-
-If a pin declares three columns but generated source SQL is:
-
-```sql
-select * from public.orders
-```
-
-then a new fourth remote column is still returned at execution time. If that new column is unsupported by BigQuery federation, the query may fail even though the pin was unchanged.
-
-Therefore this RFC separates:
-
-- **metadata source**: live vs pinned;
+- **metadata source**: live (operations) vs pinned (models);
 - **remote projection policy**: passthrough vs stable projection.
 
-These are independent dimensions.
+Model-path pins use stable projection.
 
 ---
 
@@ -258,59 +229,48 @@ These are independent dimensions.
 
 ### 5.1 Alternatives
 
-| Approach                             |    Instant UX | Automatic evolution | Governance |             Determinism |      Complexity | Recommendation             |
-| ------------------------------------ | ------------: | ------------------: | ---------: | ----------------------: | --------------: | -------------------------- |
-| Mandatory pins                       |           Low |                 Low |       High |                    High |             Low | Keep as optional mode      |
-| Always live discovery                |     Very high |           Very high |        Low |                     Low |          Medium | Useful explicit mode       |
-| Codegen/pins only                    |        Medium |              Medium |       High |                    High |          Medium | Useful governance workflow |
-| Shared metadata registry             |          High |                High |       High |                    High |       Very high | Defer                      |
-| **Auto/live/pinned/validate hybrid** | **Very high** |       **Very high** |   **High** | **High when requested** | **Medium-high** | **Selected**               |
+| Approach                           | Instant UX | Automatic evolution | Governance | Determinism | Complexity | Recommendation      |
+| ---------------------------------- | ---------: | ------------------: | ---------: | ----------: | ---------: | ------------------- |
+| Always live discovery in models    |  Very high |           Very high |        Low |         Low |     Medium | Rejected for models |
+| Mandatory hand-authored pins only  |        Low |                 Low |       High |        High |        Low | Rejected            |
+| Codegen committed SQL models       |     Medium |              Medium |       High |        High |     Medium | Deferred            |
+| Shared metadata registry           |       High |                High |       High |        High |  Very high | Defer               |
+| **Artifact-first pins + live ops** |   **High** |       **Very high** |   **High** |    **High** | **Medium** | **Selected**        |
 
 ### 5.2 Decision
 
-Adopt a hybrid architecture with four metadata modes:
+Adopt an artifact-first architecture:
 
 ```text
-auto      live      pinned      validate
+models:    pin IR → plan → EXTERNAL_QUERY   (no run_query)
+operations: live discovery ↔ IR             (run_query expected)
 ```
 
-`auto` is the recommended default user experience.
-
-The runtime and operations APIs all consume one normalized schema/type planner.
+`federation_generate_pin` is the recommended onboarding path. `metadata_mode=live|auto` on `federated_relation` MUST raise a compiler error.
 
 ### 5.3 Adversarial evaluation
 
 #### Central claim
 
-An automation-first hybrid provides the best overall product because it minimizes initial configuration while retaining an explicit path to deterministic, Git-reviewed production behavior.
+An artifact-first package provides the best overall product because it keeps Hub-native distribution while making parse, compile, docs, and run emit the same SQL.
 
 #### Strongest case for
 
-- The remote database already owns authoritative schema metadata.
+- The remote database already owns authoritative schema metadata (operations discover it).
 - BigQuery explicitly permits `EXTERNAL_QUERY` to query `information_schema` metadata.
-- Type planning is substantially more useful when driven by real source metadata.
+- Type planning is substantially more useful when driven by real source metadata (via generated pins).
 - Generated pins eliminate most manual governance work.
 - `validate` allows CI to detect drift without requiring every normal dbt command to introspect the source.
+- dbt docs state that `run_query` runs during `compile` and `docs generate`; model-path discovery is therefore unsafe.
 
 #### Strongest case against
 
-- Live discovery introduces remote connectivity into compilation/execution contexts.
-- The same Git revision can generate different SQL after a source schema change.
-- Metadata calls can create latency and source load.
-- dbt parse/compile behavior differs across engines and versions.
+- First query requires a generate-and-commit step.
+- Pins can go stale until validation runs.
 
 #### Resolution
 
-Do not hide these properties. Make metadata behavior explicit and configurable:
-
-- `live` accepts nondeterminism intentionally;
-- `pinned` guarantees no metadata lookup from the planner;
-- `validate` is explicit remote I/O for governance;
-- `auto` provides convenience and can prefer pins when available;
-- parse-only contexts must never require remote I/O;
-- command policies and fallbacks are defined below.
-
-The disagreement is therefore resolved by separating use cases rather than choosing one global behavior.
+Make the generate step the product's explicit onboarding, with actionable missing-pin errors that name `federation_generate_pin`. Do not reintroduce parse stubs that emit different SQL than execute.
 
 ---
 
@@ -336,25 +296,26 @@ federated_relation(
   connection,
   table,
   schema=None,
-  metadata_mode=None,
-  projection_mode=None,
   type_policy=None,
   overrides=None,
-  options=None
+  metadata_mode=None
 ) -> SQL table expression
 ```
 
 `schema` is required at runtime (Jinja default `None` fails with a compiler error). Pass `schema=''` for Spanner GoogleSQL's default schema. Connection config must not include `defaults`.
 
+`metadata_mode` is a compatibility argument only: omitted or `pinned` is accepted; `live` and `auto` MUST raise a compiler error directing users to operations.
+
 Responsibilities:
 
 1. resolve the connection;
-2. resolve metadata and projection modes;
-3. obtain normalized metadata from live discovery or pins;
-4. classify source columns;
-5. select query-wide options and source casts;
-6. render the remote query safely;
-7. render `EXTERNAL_QUERY`.
+2. load normalized metadata from the pin (`vars.dbt_bigquery_federation.tables`);
+3. classify source columns;
+4. select query-wide options and source casts;
+5. render the remote query safely;
+6. render `EXTERNAL_QUERY`.
+
+`federated_relation` MUST NOT call `run_query`.
 
 ### 6.2 `external_query`
 
@@ -401,9 +362,9 @@ dbt run-operation federation_inspect \
   --args '{connection: application_pg, schema: public, table: orders}'
 ```
 
-Default behavior is to inspect live metadata unless explicitly asked to inspect a pin only.
+Default behavior plans from the configured pin (`live=false`). Pass `live=true` to discover and plan from the current source schema.
 
-The current pin-planner signature keeps `type_policy` and `overrides` after `live` so inspect can mirror a `federated_relation` invocation and positional `true` still means `live`:
+The signature keeps `type_policy` and `overrides` after `live` so inspect can mirror a `federated_relation` invocation and positional `true` still means `live`:
 
 ```text
 federation_inspect(
@@ -416,7 +377,7 @@ federation_inspect(
 )
 ```
 
-That implementation still rejects `live=true` until live metadata lands. Do not reorder those kwargs.
+Do not reorder those kwargs.
 
 Example:
 
@@ -547,75 +508,40 @@ These are frontends over the same discovery/planner core, not separate implement
 
 ## 7. Metadata modes
 
-### 7.1 `auto` — recommended default
+Model path and operations path are separate.
 
-`auto` minimizes configuration while preserving an upgrade path to governance.
+### 7.1 Model path — pinned IR only
 
-Algorithm:
-
-```text
-explicit metadata_mode argument?
-  └─ yes -> use it
-
-otherwise connection/table mode configured?
-  └─ yes -> use it
-
-otherwise pin exists?
-  ├─ yes -> use pin
-  └─ no  -> live discovery when command/context permits
-```
-
-If live access is not permitted in the current context and no pin exists, the package MUST fail with an actionable message rather than silently emit an unplanned query.
-
-### 7.2 `live`
-
-Always use remote metadata for the real plan when execution context permits database access.
+`federated_relation` always uses declared metadata under `vars.dbt_bigquery_federation.tables`.
 
 Benefits:
 
-- zero schema duplication;
-- immediate support for newly added compatible columns;
-- most natural development workflow.
-
-Costs:
-
-- compiled output may change without a Git change;
-- compile/build requires connection availability;
-- source metadata is queried.
-
-### 7.3 `pinned`
-
-Use only declared metadata.
-
-Benefits:
-
-- reproducible planning;
+- reproducible planning across parse, compile, docs, and run;
 - no metadata lookup;
 - suitable for restricted CI/production networks;
 - Git review of schema/type changes.
 
-A missing pin MUST fail.
+A missing pin MUST fail with an actionable message naming `federation_generate_pin`.
 
-### 7.4 `validate`
+Passing `metadata_mode='live'` or `'auto'` MUST fail. Do not emit a parse stub that differs from the planned SQL.
 
-Use the pin as the runtime plan but also query live metadata and compare it.
+### 7.2 Operations — live discovery
 
-This is especially suitable for CI or pre-deployment checks.
+`federation_inspect` (with `live=true`), `federation_generate_pin`, `federation_schema_diff`, and `federation_validate` MAY call `run_query` against the metadata connection. That I/O is expected for those commands.
 
-Conceptually:
+### 7.3 Validate
 
-```text
-pin ──────────► runtime plan
- │
- └────┐
-      ▼
- live discovery
-      │
-      ▼
- schema diff / policy
-```
+Use the pin as the runtime plan but also query live metadata and compare it (operation only).
 
 Validation MUST NOT silently rewrite the runtime plan.
+
+### 7.4 Historical note: `auto` / model `live`
+
+Earlier revisions made `auto` the recommended default inside models (prefer pin when present, else live during connected compilation). That design is withdrawn because:
+
+- `execute` is `False` only during parse ([dbt docs](https://docs.getdbt.com/reference/dbt-jinja-functions/execute));
+- `run_query` still runs during `dbt compile` and `dbt docs generate` ([dbt docs](https://docs.getdbt.com/reference/dbt-jinja-functions/run_query));
+- parse stubs produced different SQL than connected compilation for the same Git revision.
 
 ### 7.5 Future `cached`
 
@@ -637,60 +563,26 @@ Do not build it before measurements justify it.
 
 ## 8. Command and parse behavior
 
-The previous rule “never call `run_query`” is too broad. The correct rule is:
+The correct rule is:
 
-> **Never require database I/O in parse-only evaluation. Perform live discovery only in explicitly supported connected contexts.**
+> **`federated_relation` never performs database I/O. Live discovery is reserved for explicit operations.**
 
-### 8.1 Parse
+### 8.1 Parse / compile / docs / run
 
-When dbt evaluates macros with database execution unavailable, `federated_relation` MUST NOT query metadata.
+When dbt evaluates `federated_relation`, the macro loads the pin and plans. Behavior MUST be identical whether `execute` is `False` (parse) or `True` (compile/run/docs).
 
-Possible behaviors:
+There is no parse stub and no `SELECT *` fallback.
 
-- use a pin if available;
-- use a parse-safe placeholder only if dbt requires a syntactically valid representation and the placeholder cannot leak into a real executed plan;
-- otherwise return/fail in a way compatible with the tested dbt engine.
+### 8.2 `dbt run` / `dbt build` / `dbt compile` / `dbt docs generate`
 
-The exact parse contract MUST be established by integration tests for every supported dbt version/engine.
+Model compilation does not query remote `information_schema`. Source connectivity is not required to compile federated models once pins exist.
 
-### 8.2 `dbt run` / `dbt build`
-
-`auto` or `live` may perform metadata discovery.
-
-This is the primary runtime behavior that enables automatic catch-up.
-
-### 8.3 `dbt compile`
-
-Default behavior should be configurable because teams use compile both as an offline/static step and as a connected validation step.
-
-Recommended configuration:
-
-```yaml
-metadata:
-  discovery_on_compile: false
-```
-
-When false:
-
-- prefer a pin;
-- otherwise fail clearly in `live` mode rather than silently compile a semantically different query.
-
-A later implementation may support a command-aware resolver if dbt invocation metadata is consistently available across supported engines.
-
-### 8.4 `dbt docs generate`
-
-Do not make remote OLTP discovery an implicit requirement by default.
-
-Prefer pins or previously resolved static metadata for docs workflows.
-
-### 8.5 `run-operation`
+### 8.3 `run-operation`
 
 Operations whose purpose is discovery/inspection/validation SHOULD perform live metadata access explicitly.
 
-This creates a safe and predictable boundary:
-
 ```text
-ordinary dbt build → discovery according to metadata policy
+ordinary dbt build → pin-only planning
 explicit operations → discovery is expected
 ```
 
@@ -703,17 +595,10 @@ Recommended configuration:
 ```yaml
 vars:
   dbt_bigquery_federation:
-    defaults:
-      metadata_mode: auto
-      projection_mode: auto
-      type_policy: safe
-
     connections:
       application_pg:
         connection_id: "{{ env_var('BQ_APP_PG_CONNECTION_ID') }}"
         provider: cloud_sql_postgres
-        metadata:
-          mode: auto
         types:
           policy: safe
 
@@ -723,8 +608,6 @@ vars:
 
     tables:
       application_pg.public.orders:
-        metadata_mode: pinned
-        projection_mode: stable
         columns:
           - name: id
             data_type: bigint
@@ -734,12 +617,13 @@ vars:
             scale: 8
 
     type_overrides:
-      cloud_sql_postgres:
-        uuid:
-          strategy: remote_cast
-          remote_type: text
-          target_type: STRING
+      money:
+        strategy: remote_cast
+        remote_type: text
+        target_type: STRING
 ```
+
+On dbt Core 1.12+, the same `vars` mapping MAY live in a root `vars.yml` file. The package continues to read `var('dbt_bigquery_federation')` and does not bump `require-dbt-version` solely for that feature.
 
 ### 9.1 Fully qualified connection IDs
 
@@ -1585,7 +1469,7 @@ provider: cloud_sql_postgres
 connection: application_pg
 connection_id: projects/.../connections/application-pg
 relation: public.orders
-metadata_mode: live
+metadata_source: pinned
 projection_mode: stable
 type_policy: safe
 pushdown_eligible: false
@@ -1703,15 +1587,14 @@ Acceptance: a user can query a typical PostgreSQL table from one macro call.
 Implement:
 
 ```text
-pinned mode
+pinned mode (required for federated_relation)
 federation_generate_pin
 schema diff
 federation_validate
-auto mode
 stable projection default for pinned metadata
 ```
 
-Acceptance: teams can start live and graduate to reproducible Git-reviewed schemas without redesigning models.
+Acceptance: teams generate pins from live metadata and compile models from committed IR without redesigning models.
 
 ### Phase 4 — AlloyDB PostgreSQL
 
@@ -1768,16 +1651,16 @@ federated_relation public entrypoint
 
 Required changes:
 
-1. remove the invariant that `federated_relation` can never perform discovery;
-2. implement live metadata acquisition as a provider capability;
-3. make pins optional;
-4. make `federation_inspect` inspect the source by default;
-5. add `auto`, `live`, `pinned`, and `validate` metadata modes;
-6. add generated pins and schema diff;
-7. separate projection mode from metadata mode;
-8. ensure pinned/stable plans explicitly project pinned columns;
-9. correct decimal/BIGNUMERIC boundary assumptions;
-10. add dbt-bigquery and real federation test layers.
+1. remove live/`auto` metadata modes from `federated_relation`;
+2. keep live metadata acquisition as a provider capability for operations only;
+3. make pins mandatory for model compilation;
+4. make `federation_inspect` inspect the source when `live=true`;
+5. keep generated pins and schema diff;
+6. separate projection mode from metadata source;
+7. ensure pinned/stable plans explicitly project pinned columns;
+8. correct decimal/BIGNUMERIC boundary assumptions;
+9. add dbt-bigquery and real federation test layers;
+10. document that `run_query` during `compile`/`docs generate` is why models must not discover.
 
 Preserve the current pin-planner's always-quoted identifiers, Google type-map additions (`bit` / `varbit`, `pg_lsn` / search types, native `json`, unknown arrays), and decimal-option fold (omit `"numeric"`; emit `"bignumeric"` for remaining native mix). Do not throw away working planner tests.
 
@@ -1791,14 +1674,15 @@ A production-capable first release for Cloud SQL PostgreSQL requires all of the 
 
 ### User experience
 
-- A new user can configure one connection and query a table without manually entering columns.
-- `federation_inspect` reports live source schema and conversion decisions.
+- A new user can configure one connection, generate a pin, and query a table without hand-authoring columns.
+- `federation_inspect` reports live source schema and conversion decisions when `live=true`.
 - Known unsupported PostgreSQL types are handled according to policy.
 - Unknown types produce actionable errors.
+- `federated_relation` never calls `run_query`; missing pins name `federation_generate_pin`.
 
 ### Metadata and governance
 
-- `auto`, `live`, and `pinned` behavior are documented and tested.
+- Model compilation is pin-only and documented.
 - Pins can be generated from live metadata.
 - Live-versus-pin schema differences can be reported.
 - CI validation can fail on configured drift classes.
@@ -1870,7 +1754,7 @@ These should not block the core automation-first implementation:
 
 ## 31. Final recommendation
 
-Build `dbt_bigquery_federation` as an **automation-first federation compiler and workflow**, not as a pin-only SQL generator.
+Build `dbt_bigquery_federation` as an **automation-first, artifact-first federation compiler and workflow**, not as a live-in-compile SQL generator.
 
 The package should optimize the path from:
 
@@ -1881,22 +1765,24 @@ The package should optimize the path from:
 to:
 
 ```text
-“I can use that table in a dbt model safely.”
+“I can inspect it, generate a pin, and use that table in a dbt model safely.”
 ```
 
-with one connection configuration and one macro call.
+with one connection configuration, one generate step, and one macro call.
 
-The default development experience should discover remote metadata and automatically plan type conversions. Reproducibility should then be available without redesign through generated pins and validation.
+The default model experience should plan from committed IR. Live discovery remains available through operations so schema catch-up does not require redesigning models.
 
 The most important architectural rules are:
 
-> **Discover what can be discovered; require configuration only for policy or ambiguity.**
+> **Discover what can be discovered in operations; require a pin for model compilation.**
 
-> **Use one normalized metadata/type planner for live, pinned, validation, and code-generation workflows.**
+> **Use one normalized metadata/type planner for pinned, validation, and code-generation workflows.**
 
-> **Keep metadata mode separate from projection mode so schema stability and federation pushdown are explicit trade-offs.**
+> **Keep metadata source separate from projection mode so schema stability and federation pushdown are explicit trade-offs.**
 
 > **Do not implement a custom materialization; federation remains a source-access concern.**
+
+> **Never call `run_query` from `federated_relation`.**
 
 ---
 
