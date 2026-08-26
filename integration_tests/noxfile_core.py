@@ -76,6 +76,18 @@ def bigquery_emulator_tests(session, uv_group):
     )
 
 
+@nox.session(python="3.12")
+def dialect_extract_tests(session):
+    """Layer 3: pytest remote SQL against Postgres container + Spanner emulator."""
+    session.install(".", "--group", "dbt-core-1-10")
+    session.install(".", "--group", "dialect-extract")
+    dbt_cmd = get_dbt_command(session, "dbt-core-1-10")
+    env = build_env(session, "dbt-core-1-10", dbt_cmd)
+    env.setdefault("SPANNER_EMULATOR_HOST", "localhost:9010")
+    run_deps(session, dbt_cmd, "duckdb", env)
+    session.run("pytest", "tests/dialect", "-q", env=env)
+
+
 @nox.session(python=PYTHON_VERSIONS)
 @nox.parametrize("uv_group", SETUP_DBT_GROUPS)
 def setup_dbt_env(session, uv_group):

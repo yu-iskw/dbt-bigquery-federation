@@ -1,7 +1,9 @@
 .PHONY: setup clean test \
 	postgres-up postgres-wait postgres-down postgres-logs \
+	dialect-up dialect-down dialect-logs \
 	run-unit-tests run-unit-tests-postgres \
 	run-integration-tests run-integration-tests-postgres \
+	run-dialect-extract-tests \
 	run-unit-tests-fusion run-integration-tests-fusion run-fusion-tests
 
 # Nox 2026+ errors if both NO_COLOR and FORCE_COLOR are set (common in IDEs/CI).
@@ -13,6 +15,7 @@ NOX_UNIT_PG_110 := unit_tests-3.12(adapter='postgres', uv_group='dbt-core-1-10')
 NOX_UNIT_PG_111 := unit_tests-3.12(adapter='postgres', uv_group='dbt-core-1-11')
 NOX_INT_PG_110 := integration_tests-3.12(adapter='postgres', uv_group='dbt-core-1-10')
 NOX_INT_PG_111 := integration_tests-3.12(adapter='postgres', uv_group='dbt-core-1-11')
+NOX_DIALECT := dialect_extract_tests
 
 setup:
 	uv sync
@@ -47,6 +50,15 @@ postgres-down:
 postgres-logs:
 	docker compose -f docker-compose.postgres.yml logs --no-color postgres
 
+dialect-up:
+	docker compose -p dbt-bigquery-federation-dialect -f docker-compose.dialect.yml up -d dialect-postgres spanner-emulator
+
+dialect-down:
+	docker compose -p dbt-bigquery-federation-dialect -f docker-compose.dialect.yml down
+
+dialect-logs:
+	docker compose -p dbt-bigquery-federation-dialect -f docker-compose.dialect.yml logs --no-color dialect-postgres spanner-emulator
+
 run-unit-tests-postgres:
 	./scripts/run_with_postgres_container.sh \
 		bash -lc "$(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_110)\" && $(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_111)\""
@@ -68,5 +80,10 @@ run-integration-tests-fusion: clean
 		$(UV_RUN_NOX_FUSION) -s fusion_integration_tests
 
 run-fusion-tests: run-unit-tests-fusion run-integration-tests-fusion
+
+# Layer 3: dialect Postgres + Spanner emulator only (dbt export uses duckdb target).
+run-dialect-extract-tests: clean
+	./scripts/run_with_dialect_containers.sh \
+		bash -lc "$(UV_RUN_NOX) -s \"$(NOX_DIALECT)\""
 
 test: run-unit-tests run-integration-tests

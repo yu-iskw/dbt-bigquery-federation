@@ -79,4 +79,6 @@ This harness is deliberately local and ephemeral. Terraform state contains gener
 5. runs `assert_e2e_type_matrices` to verify live discovery, live `federated_relation` planning (including remote casts for unsupported AlloyDB types), and federated cell values;
 6. executes representative `EXTERNAL_QUERY` statements with `bq query` against the smoke tables and checks deterministic row counts.
 
-The existing credential-free emulator CI remains unchanged. Real Google Cloud provisioning and query execution are deliberately developer-triggered and are not performed by GitHub Actions.
+The existing credential-free emulator CI remains unchanged. Layer 3 dialect extract tests (`make run-dialect-extract-tests`) cover remote SQL against local Postgres + Spanner emulator without BigQuery. Real Google Cloud provisioning and query execution are deliberately developer-triggered and are not performed by GitHub Actions.
+
+When changing Spanner `TypeMatrix` / `Orders` DDL, keep [`e2e/terraform/modules/spanner/main.tf`](terraform/modules/spanner/main.tf) aligned with [`integration_tests/fixtures/dialect/spanner_type_matrix_ddl.sql`](../integration_tests/fixtures/dialect/spanner_type_matrix_ddl.sql).

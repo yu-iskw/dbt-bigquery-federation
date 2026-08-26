@@ -13,6 +13,8 @@
   {% do test_alloydb_metadata_uses_postgres_profile() %}
   {% do test_metadata_external_query_wrapper() %}
   {% do test_spanner_metadata_uses_dedicated_connection() %}
+  {% do test_normalize_metadata_rows_postgres() %}
+  {% do test_normalize_metadata_rows_spanner() %}
   {% do test_federated_relation_pin_path_is_stable() %}
   {% do test_schema_diff_detects_add_remove_change() %}
   {% do test_schema_diff_no_changes() %}

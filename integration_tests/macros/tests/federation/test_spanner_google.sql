@@ -49,7 +49,7 @@
   {% do dbt_unittest.assert_equals(array_entry.target, 'ARRAY') %}
   {% do dbt_unittest.assert_equals(array_entry.lossiness, 'exact') %}
   {% do dbt_unittest.assert_equals(array_entry.remote_type, 'STRING') %}
-  {% do dbt_unittest.assert_equals(array_entry.data_type, 'ARRAY<STRING(64)>') %}
+  {% do dbt_unittest.assert_equals(array_entry.data_type, 'ARRAY<STRING>') %}
 
   {% set array_int_entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'ARRAY<INT64>') %}
   {% do dbt_unittest.assert_equals(array_int_entry.kind, 'native') %}
@@ -80,7 +80,9 @@
     ['STRING(64)', 'STRING', 'STRING'],
     ['string(64)', 'STRING', 'STRING'],
     ['BYTES(1024)', 'BYTES', 'BYTES'],
-    ['bytes(8)', 'BYTES', 'BYTES']
+    ['bytes(8)', 'BYTES', 'BYTES'],
+    ['ARRAY<STRING(16)>', 'ARRAY<STRING>', 'ARRAY'],
+    ['ARRAY<BYTES(MAX)>', 'ARRAY<BYTES>', 'ARRAY']
   ] %}
   {% for case in cases %}
     {% set entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', case[0]) %}
