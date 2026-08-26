@@ -3,14 +3,14 @@
 {% macro ir_fixture_spanner_type_matrix() %}
   {% set columns = [
     {'name': 'Id', 'data_type': 'INT64', 'ordinal_position': 1, 'nullable': false},
-    {'name': 'ColBool', 'data_type': 'BOOL', 'ordinal_position': 2, 'nullable': true},
-    {'name': 'ColBytes', 'data_type': 'BYTES', 'ordinal_position': 3, 'nullable': true},
-    {'name': 'ColDate', 'data_type': 'DATE', 'ordinal_position': 4, 'nullable': true},
-    {'name': 'ColFloat', 'data_type': 'FLOAT64', 'ordinal_position': 5, 'nullable': true},
-    {'name': 'ColJson', 'data_type': 'JSON', 'ordinal_position': 6, 'nullable': true},
-    {'name': 'ColNumeric', 'data_type': 'NUMERIC', 'ordinal_position': 7, 'nullable': true},
-    {'name': 'ColString', 'data_type': 'STRING', 'ordinal_position': 8, 'nullable': true},
-    {'name': 'ColTimestamp', 'data_type': 'TIMESTAMP', 'ordinal_position': 9, 'nullable': true},
+    {'name': 'ColBool', 'data_type': 'BOOL', 'ordinal_position': 2, 'nullable': false},
+    {'name': 'ColBytes', 'data_type': 'BYTES', 'ordinal_position': 3, 'nullable': false},
+    {'name': 'ColDate', 'data_type': 'DATE', 'ordinal_position': 4, 'nullable': false},
+    {'name': 'ColFloat', 'data_type': 'FLOAT64', 'ordinal_position': 5, 'nullable': false},
+    {'name': 'ColJson', 'data_type': 'JSON', 'ordinal_position': 6, 'nullable': false},
+    {'name': 'ColNumeric', 'data_type': 'NUMERIC', 'ordinal_position': 7, 'nullable': false},
+    {'name': 'ColString', 'data_type': 'STRING', 'ordinal_position': 8, 'nullable': false},
+    {'name': 'ColTimestamp', 'data_type': 'TIMESTAMP', 'ordinal_position': 9, 'nullable': false},
     {'name': 'ColArray', 'data_type': 'ARRAY<STRING>', 'ordinal_position': 10, 'nullable': true}
   ] %}
   {{ return({

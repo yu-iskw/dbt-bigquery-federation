@@ -14,8 +14,9 @@
     {{ return('') }}
   {% endif %}
   {% set normalized = dbt_bigquery_federation._federation_collapse_ws(data_type | string | upper) %}
-  {# Strip length modifiers for STRING/BYTES; preserve ARRAY payload for classification. #}
+  {# Strip length modifiers for STRING/BYTES (scalar and ARRAY element types). #}
   {% set normalized = modules.re.sub('^(STRING|BYTES)\\s*\\([^)]*\\)$', '\\1', normalized) %}
+  {% set normalized = modules.re.sub('ARRAY<(STRING|BYTES)\\s*\\([^)]*\\)>', 'ARRAY<\\1>', normalized) %}
   {{ return(normalized) }}
 {% endmacro %}
 

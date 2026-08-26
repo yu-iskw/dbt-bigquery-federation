@@ -14,6 +14,15 @@ dbt-core-1-11 = ["dbt-core>=1.11,<1.12", "dbt-postgres>=1.10,<1.11"]
 # federation remains covered by authenticated GCP E2E tests.
 dbt-bigquery-1-10 = ["dbt-core>=1.10,<1.11", "dbt-bigquery>=1.10,<1.11"]
 dbt-bigquery-1-11 = ["dbt-core>=1.11,<1.12", "dbt-bigquery>=1.11,<1.12"]
+# Layer 3 dialect extract: pytest executes package remote SQL against Postgres
+# container + Spanner emulator (no BigQuery EXTERNAL_QUERY). dbt-duckdb is the
+# compile/export target so Jinja-engine Postgres is not required.
+dialect-extract = [
+  "pytest>=8.0",
+  "psycopg[binary]>=3.1",
+  "google-cloud-spanner>=3.40",
+  "dbt-duckdb>=1.10,<1.11",
+]
 
 [tool.uv]
 conflicts = [
@@ -58,6 +67,10 @@ conflicts = [
     { group = "dbt-bigquery-1-11" },
   ],
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/dialect"]
+pythonpath = ["."]
 
 [tool.setuptools]
 # Prevent setuptools from trying to build dbt folders as Python packages

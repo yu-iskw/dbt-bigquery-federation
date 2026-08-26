@@ -22,6 +22,9 @@ run-integration-tests:
 run-integration-tests-fusion:
 	$(MAKE) -C integration_tests run-integration-tests-fusion
 
+run-dialect-extract-tests:
+	$(MAKE) -C integration_tests run-dialect-extract-tests
+
 run-fusion-tests:
 	$(MAKE) -C integration_tests run-fusion-tests
 

@@ -31,11 +31,64 @@
 {% endmacro %}
 
 {# Layer 1: map provider information_schema rows into normalized column IR.
-   See docs/federation/normalized-column-ir.md. #}
+   See docs/federation/normalized-column-ir.md.
+
+   Prefer `_federation_normalize_metadata_rows` when callers already have a list of
+   lowercase-key dicts (dialect extract tests). The agate `run_query` path converts
+   column vectors into that list and delegates here. #}
+{% macro _federation_normalize_metadata_rows(provider, rows) %}
+  {% if rows is none %}{{ return({'ok': false, 'error': 'Metadata rows must not be none', 'columns': none}) }}{% endif %}
+  {% set descriptor = dbt_bigquery_federation._federation_provider_descriptor(provider) %}
+  {% if descriptor is none %}{{ return({'ok': false, 'error': 'Unsupported federation provider: ' ~ (provider | string), 'columns': none}) }}{% endif %}
+  {% set normalized = namespace(columns=[]) %}
+  {% if descriptor.metadata_profile == 'postgres_information_schema' %}
+    {% for row in rows %}
+      {% set raw_type = row.get('data_type') %}
+      {% set data_type = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, raw_type) %}
+      {% set keep_numeric = dbt_bigquery_federation._federation_type_carries_numeric_typmod(data_type) %}
+      {% set keep_length = dbt_bigquery_federation._federation_type_carries_length_typmod(data_type) %}
+      {% set udt_name = row.get('udt_name') %}
+      {% set precision = row.get('numeric_precision') %}
+      {% set scale = row.get('numeric_scale') %}
+      {% set length = row.get('character_maximum_length') %}
+      {% do normalized.columns.append({
+        'name': row.get('column_name') | string,
+        'data_type': data_type,
+        'raw_data_type': raw_type | string,
+        'udt_name': udt_name if udt_name is not none else none,
+        'ordinal_position': row.get('ordinal_position') | int,
+        'nullable': (row.get('is_nullable') | string | upper) == 'YES',
+        'precision': precision | int if keep_numeric and precision is not none else none,
+        'scale': scale | int if keep_numeric and scale is not none else none,
+        'character_maximum_length': length | int if keep_length and length is not none else none
+      }) %}
+    {% endfor %}
+  {% elif descriptor.metadata_profile == 'spanner_google_information_schema' %}
+    {% for row in rows %}
+      {% set raw_type = row.get('spanner_type') %}
+      {% do normalized.columns.append({
+        'name': row.get('column_name') | string,
+        'data_type': dbt_bigquery_federation._federation_provider_normalize_type_name(provider, raw_type),
+        'raw_data_type': raw_type | string,
+        'udt_name': none,
+        'ordinal_position': row.get('ordinal_position') | int,
+        'nullable': (row.get('is_nullable') | string | upper) == 'YES',
+        'precision': none,
+        'scale': none,
+        'character_maximum_length': none
+      }) %}
+    {% endfor %}
+  {% else %}
+    {{ return({'ok': false, 'error': 'Unsupported federation metadata profile: ' ~ descriptor.metadata_profile, 'columns': none}) }}
+  {% endif %}
+  {{ return({'ok': true, 'error': none, 'columns': normalized.columns}) }}
+{% endmacro %}
+
 {% macro _federation_normalize_metadata_result(provider, result) %}
   {% if result is none %}{{ return({'ok': false, 'error': 'Metadata query returned no result object', 'columns': none}) }}{% endif %}
   {% set descriptor = dbt_bigquery_federation._federation_provider_descriptor(provider) %}
-  {% set normalized = namespace(columns=[]) %}
+  {% if descriptor is none %}{{ return({'ok': false, 'error': 'Unsupported federation provider: ' ~ (provider | string), 'columns': none}) }}{% endif %}
+  {% set rows = [] %}
   {% if descriptor.metadata_profile == 'postgres_information_schema' %}
     {% set names = result.columns['column_name'].values() %}
     {% set data_types = result.columns['data_type'].values() %}
@@ -46,11 +99,16 @@
     {% set scales = result.columns['numeric_scale'].values() %}
     {% set lengths = result.columns['character_maximum_length'].values() %}
     {% for i in range(names | length) %}
-      {% set raw_type = data_types[i] %}
-      {% set data_type = dbt_bigquery_federation._federation_provider_normalize_type_name(provider, raw_type) %}
-      {% set keep_numeric = dbt_bigquery_federation._federation_type_carries_numeric_typmod(data_type) %}
-      {% set keep_length = dbt_bigquery_federation._federation_type_carries_length_typmod(data_type) %}
-      {% do normalized.columns.append({'name': names[i] | string, 'data_type': data_type, 'raw_data_type': raw_type | string, 'udt_name': udt_names[i] if udt_names[i] is not none else none, 'ordinal_position': ordinals[i] | int, 'nullable': (nullables[i] | string | upper) == 'YES', 'precision': precisions[i] | int if keep_numeric and precisions[i] is not none else none, 'scale': scales[i] | int if keep_numeric and scales[i] is not none else none, 'character_maximum_length': lengths[i] | int if keep_length and lengths[i] is not none else none}) %}
+      {% do rows.append({
+        'column_name': names[i],
+        'data_type': data_types[i],
+        'udt_name': udt_names[i],
+        'ordinal_position': ordinals[i],
+        'is_nullable': nullables[i],
+        'numeric_precision': precisions[i],
+        'numeric_scale': scales[i],
+        'character_maximum_length': lengths[i]
+      }) %}
     {% endfor %}
   {% elif descriptor.metadata_profile == 'spanner_google_information_schema' %}
     {% set names = result.columns['column_name'].values() %}
@@ -58,13 +116,17 @@
     {% set ordinals = result.columns['ordinal_position'].values() %}
     {% set nullables = result.columns['is_nullable'].values() %}
     {% for i in range(names | length) %}
-      {% set raw_type = types[i] %}
-      {% do normalized.columns.append({'name': names[i] | string, 'data_type': dbt_bigquery_federation._federation_provider_normalize_type_name(provider, raw_type), 'raw_data_type': raw_type | string, 'udt_name': none, 'ordinal_position': ordinals[i] | int, 'nullable': (nullables[i] | string | upper) == 'YES', 'precision': none, 'scale': none, 'character_maximum_length': none}) %}
+      {% do rows.append({
+        'column_name': names[i],
+        'spanner_type': types[i],
+        'ordinal_position': ordinals[i],
+        'is_nullable': nullables[i]
+      }) %}
     {% endfor %}
   {% else %}
     {{ return({'ok': false, 'error': 'Unsupported federation metadata profile: ' ~ descriptor.metadata_profile, 'columns': none}) }}
   {% endif %}
-  {{ return({'ok': true, 'error': none, 'columns': normalized.columns}) }}
+  {{ return(dbt_bigquery_federation._federation_normalize_metadata_rows(provider, rows)) }}
 {% endmacro %}
 
 {% macro _federation_try_get_remote_columns(connection, table, schema=None) %}

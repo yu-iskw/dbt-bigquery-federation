@@ -20,3 +20,6 @@ models_py*/
 target_*/
 build/
 build_*/
+
+*.duckdb
+*.duckdb.wal
