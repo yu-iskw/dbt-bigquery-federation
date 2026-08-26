@@ -66,6 +66,6 @@ _federation_try_plan_columns(
 
 ## Fixture packs
 
-Offline type-matrix fixtures live under [`integration_tests/macros/fixtures/ir/`](../../integration_tests/macros/fixtures/ir/). They return IR packs that mirror the e2e `type_matrix` tables so planner unit tests and live e2e assertions share one column contract without hitting BigQuery during `make run-unit-tests`.
+Offline type-matrix fixtures live under [`integration_tests/macros/tests/fixtures/ir/`](../../integration_tests/macros/tests/fixtures/ir/). They return IR packs that mirror the e2e `type_matrix` tables so planner unit tests and live e2e assertions share one column contract without hitting BigQuery during `make run-unit-tests`.
 
 See also RFC-0001 §10 (normalized schema model) and [`macros/CLAUDE.md`](../../macros/CLAUDE.md).

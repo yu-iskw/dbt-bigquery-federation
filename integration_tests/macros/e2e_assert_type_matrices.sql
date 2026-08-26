@@ -42,7 +42,7 @@
 {% endmacro %}
 
 {% macro _assert_e2e_alloydb_type_matrix() %}
-  {# Column contract shared with offline IR fixture (macros/fixtures/ir/). #}
+  {# Column contract shared with offline IR fixture (macros/tests/fixtures/ir/). #}
   {% set fixture = ir_fixture_alloydb_type_matrix() %}
   {% set expected_columns = _ir_fixture_column_names(fixture) %}
   {% set discovered = dbt_bigquery_federation._federation_try_get_remote_columns('analytics_alloydb', 'type_matrix', 'public') %}

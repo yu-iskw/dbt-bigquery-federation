@@ -14,7 +14,7 @@
 
 ## Normalized column IR fixtures
 
-Layer 2 (type planning / SQL generation) is tested offline via IR packs under [`macros/fixtures/ir/`](macros/fixtures/ir/). Those packs mirror e2e `type_matrix` tables and are consumed by [`macros/tests/federation/test_plan_from_ir.sql`](macros/tests/federation/test_plan_from_ir.sql) through `_federation_try_plan_columns`.
+Layer 2 (type planning / SQL generation) is tested offline via IR packs under [`macros/tests/fixtures/ir/`](macros/tests/fixtures/ir/). Those packs mirror e2e `type_matrix` tables and are consumed by [`macros/tests/federation/test_plan_from_ir.sql`](macros/tests/federation/test_plan_from_ir.sql) through `_federation_try_plan_columns`. Keep them under `macros/tests/` so dbt Fusion loads the macros (it does not pick up a top-level `macros/fixtures/` tree).
 
 - Do **not** live-discover remote schemas in unit tests for the planner.
 - Prefer `_ir_fixture_plan(fixture)` over hand-built connection/column stubs when a pack exists.
