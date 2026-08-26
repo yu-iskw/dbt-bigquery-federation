@@ -86,7 +86,8 @@ wait_healthy() {
 			return 1
 		fi
 
-		if (("$(date +%s)" - started_at >= WAIT_SECONDS)); then
+		now="$(date +%s)"
+		if ((now - started_at >= WAIT_SECONDS)); then
 			echo "Timed out waiting for ${container_name} after ${WAIT_SECONDS}s (state=${state})." >&2
 			return 1
 		fi

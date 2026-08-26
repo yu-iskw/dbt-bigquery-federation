@@ -6,7 +6,6 @@ import json
 import os
 import re
 import subprocess
-import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
