@@ -12,7 +12,7 @@
   {% if relation_schema is none %}
     {{ return({
       'ok': false,
-      'error': 'schema is required for ' ~ connection ~ '.' ~ table ~ ' (no connection defaults.schema)',
+      'error': 'schema is required for ' ~ connection ~ '.' ~ table,
       'pin': none,
       'connection': none
     }) }}

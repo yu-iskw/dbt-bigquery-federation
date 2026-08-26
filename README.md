@@ -33,16 +33,12 @@ vars:
       application_pg:
         connection_id: "{{ env_var('BQ_APP_PG_CONNECTION_ID') }}"
         provider: cloud_sql_postgres
-        defaults:
-          schema: public
         types:
           policy: safe
 
       analytics_alloydb:
         connection_id: "{{ env_var('BQ_ALLOYDB_CONNECTION_ID') }}"
         provider: alloydb_postgres
-        defaults:
-          schema: public
 
       spanner_app:
         # The data connection may enable Spanner parallel reads.
@@ -51,9 +47,11 @@ vars:
         # non-parallel connection for INFORMATION_SCHEMA discovery.
         metadata_connection_id: "{{ env_var('BQ_SPANNER_METADATA_CONNECTION_ID') }}"
         provider: spanner_google_sql
-        defaults:
-          schema: ""
 ```
+
+`schema` is required on every federation call site. Pass the remote schema name (for example `public` on PostgreSQL/AlloyDB). For Spanner GoogleSQL's default schema, pass `schema=''` (empty string), matching Spanner `INFORMATION_SCHEMA` where the default schema is empty.
+
+Do not set `connections.*.defaults`; that key is rejected.
 
 `connection_id` and, when configured, `metadata_connection_id` must be fully qualified:
 
@@ -74,6 +72,7 @@ Use a configured pin when one exists. Otherwise discover the current remote sche
 ```sql
 {{ dbt_bigquery_federation.federated_relation(
     connection='application_pg',
+    schema='public',
     table='orders',
     metadata_mode='auto'
 ) }}
@@ -86,6 +85,7 @@ Always discover the current source schema and re-plan types.
 ```sql
 {{ dbt_bigquery_federation.federated_relation(
     connection='application_pg',
+    schema='public',
     table='orders',
     metadata_mode='live'
 ) }}
@@ -237,4 +237,4 @@ The same table expression can be used with `table`, `incremental`, or `ephemeral
 
 ## Development
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for local tests and repository conventions. The architecture and roadmap are defined in [RFC-0001](./docs/rfcs/0001-bigquery-federation-architecture.md).
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for local tests and repository conventions. The architecture and roadmap are defined in [RFC-0001](./docs/rfcs/0001-bigquery-federation-architecture.md). The [normalized column IR](./docs/federation/normalized-column-ir.md) is the contract between remote metadata extraction and SQL planning.

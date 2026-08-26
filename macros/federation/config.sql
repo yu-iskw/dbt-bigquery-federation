@@ -42,9 +42,12 @@
   {% if not dbt_bigquery_federation._federation_connection_id_is_valid(metadata_cid.value) %}
     {{ return({'ok': false, 'error': 'metadata_connection_id for ' ~ connection_name ~ ' must match projects/PROJECT/locations/LOCATION/connections/NAME', 'connection': none}) }}
   {% endif %}
-  {% set defaults = conn.get('defaults', {}) %}
-  {% if defaults is not mapping %}
-    {{ return({'ok': false, 'error': 'Connection ' ~ connection_name ~ ' defaults must be a mapping', 'connection': none}) }}
+  {% if 'defaults' in conn %}
+    {{ return({
+      'ok': false,
+      'error': 'Connection ' ~ connection_name ~ ' must not set defaults; pass schema= explicitly on federation macros',
+      'connection': none
+    }) }}
   {% endif %}
   {% set types = conn.get('types', {}) %}
   {% if types is not mapping %}
@@ -74,7 +77,6 @@
     'metadata_profile': descriptor.metadata_profile,
     'type_profile': descriptor.type_profile,
     'capabilities': descriptor.capabilities,
-    'default_schema': defaults.get('schema'),
     'policy': types.get('policy', 'safe'),
     'query_execution_priority': priority
   }}) }}

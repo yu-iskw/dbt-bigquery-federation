@@ -130,8 +130,6 @@ vars:
       application_pg:
         connection_id: "{{ env_var('BQ_APP_PG_CONNECTION_ID') }}"
         provider: cloud_sql_postgres
-        defaults:
-          schema: public
 ```
 
 and model SQL comparable to:
@@ -140,11 +138,12 @@ and model SQL comparable to:
 select *
 from {{ dbt_bigquery_federation.federated_relation(
     connection='application_pg',
+    schema='public',
     table='orders'
 ) }}
 ```
 
-No column-by-column YAML should be required for this first experience.
+No column-by-column YAML should be required for this first experience. Remote `schema` is always explicit at the call site (use `schema=''` for Spanner GoogleSQL's default schema).
 
 ### 2.3 Product principles
 
@@ -259,13 +258,13 @@ These are independent dimensions.
 
 ### 5.1 Alternatives
 
-| Approach | Instant UX | Automatic evolution | Governance | Determinism | Complexity | Recommendation |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Mandatory pins | Low | Low | High | High | Low | Keep as optional mode |
-| Always live discovery | Very high | Very high | Low | Low | Medium | Useful explicit mode |
-| Codegen/pins only | Medium | Medium | High | High | Medium | Useful governance workflow |
-| Shared metadata registry | High | High | High | High | Very high | Defer |
-| **Auto/live/pinned/validate hybrid** | **Very high** | **Very high** | **High** | **High when requested** | **Medium-high** | **Selected** |
+| Approach                             |    Instant UX | Automatic evolution | Governance |             Determinism |      Complexity | Recommendation             |
+| ------------------------------------ | ------------: | ------------------: | ---------: | ----------------------: | --------------: | -------------------------- |
+| Mandatory pins                       |           Low |                 Low |       High |                    High |             Low | Keep as optional mode      |
+| Always live discovery                |     Very high |           Very high |        Low |                     Low |          Medium | Useful explicit mode       |
+| Codegen/pins only                    |        Medium |              Medium |       High |                    High |          Medium | Useful governance workflow |
+| Shared metadata registry             |          High |                High |       High |                    High |       Very high | Defer                      |
+| **Auto/live/pinned/validate hybrid** | **Very high** |       **Very high** |   **High** | **High when requested** | **Medium-high** | **Selected**               |
 
 ### 5.2 Decision
 
@@ -344,6 +343,8 @@ federated_relation(
   options=None
 ) -> SQL table expression
 ```
+
+`schema` is required at runtime (Jinja default `None` fails with a compiler error). Pass `schema=''` for Spanner GoogleSQL's default schema. Connection config must not include `defaults`.
 
 Responsibilities:
 
@@ -711,8 +712,6 @@ vars:
       application_pg:
         connection_id: "{{ env_var('BQ_APP_PG_CONNECTION_ID') }}"
         provider: cloud_sql_postgres
-        defaults:
-          schema: public
         metadata:
           mode: auto
         types:
@@ -721,8 +720,6 @@ vars:
       application_mysql:
         connection_id: "{{ env_var('BQ_APP_MYSQL_CONNECTION_ID') }}"
         provider: cloud_sql_mysql
-        defaults:
-          schema: app
 
     tables:
       application_pg.public.orders:
@@ -1267,6 +1264,7 @@ Federation should remain a table-expression concern.
 select *
 from {{ dbt_bigquery_federation.federated_relation(
     connection='application_pg',
+    schema='public',
     table='orders'
 ) }}
 ```
@@ -1279,6 +1277,7 @@ from {{ dbt_bigquery_federation.federated_relation(
 select *
 from {{ dbt_bigquery_federation.federated_relation(
     connection='application_pg',
+    schema='public',
     table='orders'
 ) }}
 ```
@@ -1297,6 +1296,7 @@ from {{ dbt_bigquery_federation.federated_relation(
 select *
 from {{ dbt_bigquery_federation.federated_relation(
     connection='application_pg',
+    schema='public',
     table='orders'
 ) }}
 
@@ -1835,19 +1835,19 @@ A production-capable first release for Cloud SQL PostgreSQL requires all of the 
 
 ## 29. Major risks and mitigations
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Live discovery changes compiled SQL without Git changes | Reproducibility | pinned mode, generated pins, validate mode |
-| Metadata access makes compile/build slower | Developer experience | narrow metadata queries, pins, benchmark before caching |
-| Source schema adds unsupported column | Runtime failure | live discovery + normalization, or stable projection in pinned mode |
-| Stable projection loses pushdown | Source/network cost | explicit projection mode, inspect diagnostics, benchmarks |
-| Unknown extension type is guessed incorrectly | Data correctness | fail unknown types by default |
-| Type normalization loses semantics | Data correctness | lossiness model, strict policy, explicit overrides |
-| dbt v1/v2 parse behavior differs | Compatibility | public APIs only, actual CI matrix, parse tests |
-| Source DB is overloaded | Production reliability | read replicas/read endpoints, query guidance, monitoring |
-| Location mismatch | Runtime failure/cost | canonical IDs, diagnostics, validation where context permits |
-| Raw SQL escape hatch is abused | Security/correctness | explicit trusted API, high-level structured APIs by default |
-| Too many provider branches make Jinja unmaintainable | Maintainability | normalized schema contract, provider family helpers, focused interfaces |
+| Risk                                                    | Impact                 | Mitigation                                                              |
+| ------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------- |
+| Live discovery changes compiled SQL without Git changes | Reproducibility        | pinned mode, generated pins, validate mode                              |
+| Metadata access makes compile/build slower              | Developer experience   | narrow metadata queries, pins, benchmark before caching                 |
+| Source schema adds unsupported column                   | Runtime failure        | live discovery + normalization, or stable projection in pinned mode     |
+| Stable projection loses pushdown                        | Source/network cost    | explicit projection mode, inspect diagnostics, benchmarks               |
+| Unknown extension type is guessed incorrectly           | Data correctness       | fail unknown types by default                                           |
+| Type normalization loses semantics                      | Data correctness       | lossiness model, strict policy, explicit overrides                      |
+| dbt v1/v2 parse behavior differs                        | Compatibility          | public APIs only, actual CI matrix, parse tests                         |
+| Source DB is overloaded                                 | Production reliability | read replicas/read endpoints, query guidance, monitoring                |
+| Location mismatch                                       | Runtime failure/cost   | canonical IDs, diagnostics, validation where context permits            |
+| Raw SQL escape hatch is abused                          | Security/correctness   | explicit trusted API, high-level structured APIs by default             |
+| Too many provider branches make Jinja unmaintainable    | Maintainability        | normalized schema contract, provider family helpers, focused interfaces |
 
 ---
 

@@ -1,9 +1,6 @@
 {% macro _federation_resolve_relation_schema(connection_cfg, schema=None) %}
-  {% set relation_schema = schema if schema is not none else connection_cfg.default_schema %}
-  {% if relation_schema is none and connection_cfg.metadata_profile == 'spanner_google_information_schema' %}
-    {{ return('') }}
-  {% endif %}
-  {{ return(relation_schema) }}
+  {# schema is required at the call site; empty string is Spanner's default schema. #}
+  {{ return(schema) }}
 {% endmacro %}
 
 {% macro _federation_has_pin(connection, table, schema=None) %}
@@ -42,7 +39,7 @@
   {% set conn = resolved.connection %}
   {% set relation_schema = dbt_bigquery_federation._federation_resolve_relation_schema(conn, schema) %}
   {% if relation_schema is none %}
-    {{ return({'ok': false, 'error': 'schema is required for ' ~ connection ~ '.' ~ table ~ ' (no connection defaults.schema)', 'sql': none}) }}
+    {{ return({'ok': false, 'error': 'schema is required for ' ~ connection ~ '.' ~ table, 'sql': none}) }}
   {% endif %}
   {% set relation = dbt_bigquery_federation._federation_provider_render_remote_relation(conn.provider, relation_schema, table) %}
   {% set remote_sql = 'select * from ' ~ relation %}

@@ -27,6 +27,16 @@ ALLOYDB_PASSWORD="$(terraform -chdir="${TF_DIR}" output -raw alloydb_password)"
 SPANNER_INSTANCE="$(terraform -chdir="${TF_DIR}" output -raw spanner_instance_id)"
 SPANNER_DATABASE="$(terraform -chdir="${TF_DIR}" output -raw spanner_database_id)"
 
+seed_spanner_sql() {
+	local sql_file="$1"
+	local sql
+	sql="$(<"${sql_file}")"
+	gcloud spanner databases execute-sql "${SPANNER_DATABASE}" \
+		--instance="${SPANNER_INSTANCE}" \
+		--project="${PROJECT_ID}" \
+		--sql="${sql}"
+}
+
 proxy_log="$(mktemp)"
 alloydb-auth-proxy "${ALLOYDB_INSTANCE_URI}" --public-ip --port 55432 >"${proxy_log}" 2>&1 &
 proxy_pid=$!
@@ -52,11 +62,8 @@ fi
 
 PGPASSWORD="${ALLOYDB_PASSWORD}" psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 55432 -U "${ALLOYDB_USER}" -d "${ALLOYDB_DATABASE}" -f "${E2E_DIR}/fixtures/alloydb.sql"
 
-SPANNER_SQL="$(<"${E2E_DIR}/fixtures/spanner.sql")"
-gcloud spanner databases execute-sql "${SPANNER_DATABASE}" \
-	--instance="${SPANNER_INSTANCE}" \
-	--project="${PROJECT_ID}" \
-	--sql="${SPANNER_SQL}"
+seed_spanner_sql "${E2E_DIR}/fixtures/spanner.sql"
+seed_spanner_sql "${E2E_DIR}/fixtures/spanner_type_matrix.sql"
 
 export DBT_BIGQUERY_PROJECT="${PROJECT_ID}"
 export DBT_BIGQUERY_DATASET="dbt_bigquery_federation_e2e"
@@ -64,15 +71,19 @@ export DBT_BIGQUERY_LOCATION="${BQ_LOCATION}"
 
 alloydb_vars="$(printf '{"dbt_bigquery_federation":{"connections":{"analytics_alloydb":{"connection_id":"%s","provider":"alloydb_postgres","defaults":{"schema":"public"},"types":{"policy":"safe"}}}}}' "${ALLOYDB_CONNECTION_ID}")"
 spanner_vars="$(printf '{"dbt_bigquery_federation":{"connections":{"spanner_app":{"connection_id":"%s","metadata_connection_id":"%s","provider":"spanner_google_sql","defaults":{"schema":""},"types":{"policy":"safe"}}}}}' "${SPANNER_CONNECTION_ID}" "${SPANNER_METADATA_CONNECTION_ID}")"
+combined_vars="$(printf '{"dbt_bigquery_federation":{"connections":{"analytics_alloydb":{"connection_id":"%s","provider":"alloydb_postgres","defaults":{"schema":"public"},"types":{"policy":"safe"}},"spanner_app":{"connection_id":"%s","metadata_connection_id":"%s","provider":"spanner_google_sql","defaults":{"schema":""},"types":{"policy":"safe"}}}}}' "${ALLOYDB_CONNECTION_ID}" "${SPANNER_CONNECTION_ID}" "${SPANNER_METADATA_CONNECTION_ID}")"
 
 cd "${INTEGRATION_DIR}"
 uv run --group dbt-bigquery-1-11 dbt debug --profiles-dir profiles --target bigquery_gcp
 uv run --group dbt-bigquery-1-11 dbt run-operation get_remote_columns --profiles-dir profiles --target bigquery_gcp \
 	--vars "${alloydb_vars}" \
-	--args '{connection: analytics_alloydb, schema: public, table: orders}'
+	--args '{connection: analytics_alloydb, schema: public, table: type_matrix}'
 uv run --group dbt-bigquery-1-11 dbt run-operation get_remote_columns --profiles-dir profiles --target bigquery_gcp \
 	--vars "${spanner_vars}" \
-	--args '{connection: spanner_app, schema: "", table: Orders}'
+	--args '{connection: spanner_app, schema: "", table: TypeMatrix}'
+
+uv run --group dbt-bigquery-1-11 dbt run-operation assert_e2e_type_matrices --profiles-dir profiles --target bigquery_gcp \
+	--vars "${combined_vars}"
 
 alloydb_count="$({
 	bq query --quiet --use_legacy_sql=false --format=csv --location="${BQ_LOCATION}" \
@@ -84,12 +95,12 @@ spanner_count="$({
 } | tail -n 1)"
 
 if [[ ${alloydb_count} != "2" ]]; then
-	echo "unexpected AlloyDB row count: ${alloydb_count}" >&2
+	echo "unexpected AlloyDB orders row count: ${alloydb_count}" >&2
 	exit 1
 fi
 if [[ ${spanner_count} != "2" ]]; then
-	echo "unexpected Spanner row count: ${spanner_count}" >&2
+	echo "unexpected Spanner Orders row count: ${spanner_count}" >&2
 	exit 1
 fi
 
-echo "Local real-GCP E2E passed: AlloyDB=${alloydb_count}, Spanner=${spanner_count}"
+echo "Local real-GCP E2E passed: AlloyDB orders=${alloydb_count}, Spanner Orders=${spanner_count}, type_matrix asserted"
