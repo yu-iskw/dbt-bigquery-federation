@@ -1,3 +1,7 @@
+{# Layer 2 entrypoint: plan remote SQL from normalized column IR.
+   Layer 1 (live discovery / pins) must normalize into the IR documented in
+   docs/federation/normalized-column-ir.md before calling this macro.
+   Unit tests should call this with fixtures; do not run_query here. #}
 {% macro _federation_try_plan_columns(connection_cfg, schema, table, columns, type_policy=None, overrides=None, metadata_source='live') %}
   {% set relation = connection_cfg.provider ~ ' ' ~ schema ~ '.' ~ table %}
   {% set policy_result = dbt_bigquery_federation._federation_resolve_policy(connection_cfg, type_policy) %}

@@ -44,6 +44,15 @@ Reference: [About dispatch config](https://docs.getdbt.com/reference/dbt-jinja-f
 - Use the **dispatcher** macro `name` in YAML (for example `federated_relation`), not `default__federated_relation`.
 - Keep `arguments` aligned with the Jinja signature.
 
+## Layer boundary (metadata vs planner)
+
+Keep extraction and SQL generation decoupled:
+
+1. **Layer 1 (extract):** `_federation_try_get_remote_columns` / pin load → normalized column IR.
+2. **Layer 2 (plan + render):** `_federation_try_plan_columns` → remote SQL → `_federation_render_external_query`.
+
+The IR contract is [`docs/federation/normalized-column-ir.md`](../docs/federation/normalized-column-ir.md). Planner unit tests MUST feed IR fixtures into `_federation_try_plan_columns` and MUST NOT live-discover schemas.
+
 ## Tests
 
 Macro unit tests mirror this tree under [`integration_tests/macros/tests/`](../integration_tests/macros/tests/) (see [`integration_tests/CLAUDE.md`](../integration_tests/CLAUDE.md)). Planner tests MUST assert SQL strings and MUST NOT `run_query` `EXTERNAL_QUERY`.

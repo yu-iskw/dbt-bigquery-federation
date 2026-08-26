@@ -26,11 +26,11 @@ vars:
         metadata_connection_id: projects/my-project/locations/us-central1/connections/spanner_metadata
 
         provider: spanner_google_sql
-        defaults:
-          schema: ""
         types:
           policy: safe
 ```
+
+Pass `schema=''` on federation macros when targeting Spanner's default schema (empty `TABLE_SCHEMA` in `INFORMATION_SCHEMA`). Named Spanner schemas use the non-empty schema name.
 
 Normal federated table queries continue to use `connection_id`; live schema discovery, pin generation, schema diff, and validation use `metadata_connection_id`.
 

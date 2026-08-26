@@ -32,25 +32,26 @@ vars:
       application_pg:
         connection_id: projects/example/locations/us/connections/application-pg
         provider: cloud_sql_postgres
-        defaults:
-          schema: public
         types:
           policy: safe
       analytics_alloydb:
         connection_id: projects/example/locations/us/connections/analytics-alloydb
         provider: alloydb_postgres
-        defaults:
-          schema: public
         types:
           policy: safe
       spanner_app:
         connection_id: projects/example/locations/us/connections/spanner-data
         metadata_connection_id: projects/example/locations/us/connections/spanner-metadata
         provider: spanner_google_sql
-        defaults:
-          schema: ""
         options:
           query_execution_priority: low
+        types:
+          policy: safe
+      stale_defaults_pg:
+        connection_id: projects/example/locations/us/connections/stale-defaults-pg
+        provider: cloud_sql_postgres
+        defaults:
+          schema: public
         types:
           policy: safe
     tables:

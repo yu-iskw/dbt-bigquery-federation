@@ -30,6 +30,8 @@
   {{ return('select * from ' ~ external) }}
 {% endmacro %}
 
+{# Layer 1: map provider information_schema rows into normalized column IR.
+   See docs/federation/normalized-column-ir.md. #}
 {% macro _federation_normalize_metadata_result(provider, result) %}
   {% if result is none %}{{ return({'ok': false, 'error': 'Metadata query returned no result object', 'columns': none}) }}{% endif %}
   {% set descriptor = dbt_bigquery_federation._federation_provider_descriptor(provider) %}
@@ -73,7 +75,7 @@
     {{ return({'ok': false, 'error': 'Provider ' ~ conn.provider ~ ' does not support schema discovery', 'columns': none, 'connection': conn, 'schema': schema, 'table': table}) }}
   {% endif %}
   {% set relation_schema = dbt_bigquery_federation._federation_resolve_relation_schema(conn, schema) %}
-  {% if relation_schema is none %}{{ return({'ok': false, 'error': 'schema is required for ' ~ connection ~ '.' ~ table ~ ' (no connection defaults.schema)', 'columns': none, 'connection': conn, 'schema': none, 'table': table}) }}{% endif %}
+  {% if relation_schema is none %}{{ return({'ok': false, 'error': 'schema is required for ' ~ connection ~ '.' ~ table, 'columns': none, 'connection': conn, 'schema': none, 'table': table}) }}{% endif %}
   {% if not execute %}{{ return({'ok': false, 'error': 'Live metadata discovery requires execute=true; use pinned metadata during parse-only evaluation', 'columns': none, 'connection': conn, 'schema': relation_schema, 'table': table}) }}{% endif %}
   {% set query_sql = dbt_bigquery_federation._federation_metadata_query_sql(conn, relation_schema, table) %}
   {% set normalized = dbt_bigquery_federation._federation_normalize_metadata_result(conn.provider, run_query(query_sql)) %}

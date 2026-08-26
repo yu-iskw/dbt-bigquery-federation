@@ -73,3 +73,18 @@
     'projects/example/locations/us/connections/spanner-metadata'
   ) %}
 {% endmacro %}
+
+{% macro test_connection_rejects_defaults_block() %}
+  {% set resolved = dbt_bigquery_federation._federation_try_resolve_connection('stale_defaults_pg') %}
+  {% do dbt_unittest.assert_equals(resolved.ok, false) %}
+  {% do dbt_unittest.assert_equals('must not set defaults' in resolved.error, true) %}
+{% endmacro %}
+
+{% macro test_schema_is_required_when_omitted() %}
+  {% set stub = dbt_bigquery_federation._federation_parse_stub('application_pg', 'orders') %}
+  {% do dbt_unittest.assert_equals(stub.ok, false) %}
+  {% do dbt_unittest.assert_equals(stub.error, 'schema is required for application_pg.orders') %}
+  {% set pin = dbt_bigquery_federation._federation_try_load_pin('application_pg', 'orders') %}
+  {% do dbt_unittest.assert_equals(pin.ok, false) %}
+  {% do dbt_unittest.assert_equals(pin.error, 'schema is required for application_pg.orders') %}
+{% endmacro %}

@@ -18,23 +18,83 @@
   {% do dbt_unittest.assert_equals("table_name = 'Orders'" in normalized, true) %}
 {% endmacro %}
 
+{% macro _test_spanner_google_expected_scalar_matrix() %}
+  {% set matrix = {
+    'BOOL': {'kind': 'native', 'target': 'BOOL', 'lossiness': 'exact', 'remote_type': 'STRING'},
+    'BYTES': {'kind': 'native', 'target': 'BYTES', 'lossiness': 'exact', 'remote_type': 'STRING'},
+    'DATE': {'kind': 'native', 'target': 'DATE', 'lossiness': 'exact', 'remote_type': 'STRING'},
+    'FLOAT64': {'kind': 'native', 'target': 'FLOAT64', 'lossiness': 'exact', 'remote_type': 'STRING'},
+    'INT64': {'kind': 'native', 'target': 'INT64', 'lossiness': 'exact', 'remote_type': 'STRING'},
+    'JSON': {'kind': 'native', 'target': 'JSON', 'lossiness': 'exact', 'remote_type': 'STRING'},
+    'NUMERIC': {'kind': 'native', 'target': 'NUMERIC', 'lossiness': 'range_risk', 'remote_type': 'STRING'},
+    'STRING': {'kind': 'native', 'target': 'STRING', 'lossiness': 'exact', 'remote_type': 'STRING'},
+    'TIMESTAMP': {'kind': 'native', 'target': 'TIMESTAMP', 'lossiness': 'precision_loss', 'remote_type': 'STRING'}
+  } %}
+  {{ return(matrix) }}
+{% endmacro %}
+
 {% macro test_spanner_google_type_mapping() %}
-  {% set json_entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'JSON') %}
-  {% do dbt_unittest.assert_equals(json_entry.kind, 'native') %}
-  {% do dbt_unittest.assert_equals(json_entry.target, 'JSON') %}
+  {% set expected = _test_spanner_google_expected_scalar_matrix() %}
+  {% for data_type, want in expected.items() %}
+    {% set entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', data_type) %}
+    {% do dbt_unittest.assert_equals(entry.kind, want.kind) %}
+    {% do dbt_unittest.assert_equals(entry.target, want.target) %}
+    {% do dbt_unittest.assert_equals(entry.lossiness, want.lossiness) %}
+    {% do dbt_unittest.assert_equals(entry.remote_type, want.remote_type) %}
+    {% do dbt_unittest.assert_equals(entry.data_type, data_type) %}
+  {% endfor %}
+
   {% set array_entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'ARRAY<STRING(64)>') %}
   {% do dbt_unittest.assert_equals(array_entry.kind, 'native') %}
   {% do dbt_unittest.assert_equals(array_entry.target, 'ARRAY') %}
-  {% set timestamp_entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'TIMESTAMP') %}
-  {% do dbt_unittest.assert_equals(timestamp_entry.target, 'TIMESTAMP') %}
-  {% do dbt_unittest.assert_equals(timestamp_entry.lossiness, 'precision_loss') %}
+  {% do dbt_unittest.assert_equals(array_entry.lossiness, 'exact') %}
+  {% do dbt_unittest.assert_equals(array_entry.remote_type, 'STRING') %}
+  {% do dbt_unittest.assert_equals(array_entry.data_type, 'ARRAY<STRING(64)>') %}
+
+  {% set array_int_entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'ARRAY<INT64>') %}
+  {% do dbt_unittest.assert_equals(array_int_entry.kind, 'native') %}
+  {% do dbt_unittest.assert_equals(array_int_entry.target, 'ARRAY') %}
+
   {% set struct_entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'STRUCT<id INT64>') %}
   {% do dbt_unittest.assert_equals(struct_entry.kind, 'unsupported') %}
   {% do dbt_unittest.assert_equals(struct_entry.target, none) %}
   {% do dbt_unittest.assert_equals(struct_entry.remote_type, none) %}
+  {% set bare_struct = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'STRUCT') %}
+  {% do dbt_unittest.assert_equals(bare_struct.kind, 'unsupported') %}
+  {% do dbt_unittest.assert_equals(bare_struct.remote_type, none) %}
   {% set array_struct_entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'ARRAY<STRUCT<id INT64>>') %}
   {% do dbt_unittest.assert_equals(array_struct_entry.kind, 'unsupported') %}
   {% do dbt_unittest.assert_equals(array_struct_entry.remote_type, none) %}
+
+  {% set unknown = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', 'GEOGRAPHY') %}
+  {% do dbt_unittest.assert_equals(unknown.kind, 'unknown') %}
+  {% do dbt_unittest.assert_equals(unknown.target, none) %}
+  {% do dbt_unittest.assert_equals(unknown.lossiness, 'unknown') %}
+  {% do dbt_unittest.assert_equals(unknown.remote_type, none) %}
+{% endmacro %}
+
+{% macro test_spanner_google_type_length_modifiers_to_bigquery_target() %}
+  {# Length modifiers normalize then map to the same BigQuery target as the scalar. #}
+  {% set cases = [
+    ['STRING(MAX)', 'STRING', 'STRING'],
+    ['STRING(64)', 'STRING', 'STRING'],
+    ['string(64)', 'STRING', 'STRING'],
+    ['BYTES(1024)', 'BYTES', 'BYTES'],
+    ['bytes(8)', 'BYTES', 'BYTES']
+  ] %}
+  {% for case in cases %}
+    {% set entry = dbt_bigquery_federation._federation_provider_type_entry('spanner_google_sql', case[0]) %}
+    {% do dbt_unittest.assert_equals(entry.kind, 'native') %}
+    {% do dbt_unittest.assert_equals(entry.data_type, case[1]) %}
+    {% do dbt_unittest.assert_equals(entry.target, case[2]) %}
+  {% endfor %}
+{% endmacro %}
+
+{% macro test_spanner_google_render_remote_cast_smoke() %}
+  {% do dbt_unittest.assert_equals(
+    dbt_bigquery_federation._federation_provider_render_remote_cast('spanner_google_sql', '`Id`', 'STRING'),
+    'CAST(`Id` AS STRING)'
+  ) %}
 {% endmacro %}
 
 {% macro test_spanner_google_sql_rendering() %}
@@ -46,24 +106,16 @@
 {% endmacro %}
 
 {% macro test_spanner_google_live_plan_native_types() %}
-  {% set conn = {'provider': 'spanner_google_sql', 'alias': 'spanner_app', 'connection_id': 'projects/p/locations/us/connections/spanner', 'policy': 'safe', 'query_execution_priority': 'low'} %}
-  {% set columns = [{'name': 'id', 'data_type': 'INT64'}, {'name': 'payload', 'data_type': 'JSON'}, {'name': 'created_at', 'data_type': 'TIMESTAMP'}] %}
-  {% set result = dbt_bigquery_federation._federation_try_plan_columns(conn, '', 'Orders', columns) %}
-  {% do dbt_unittest.assert_equals(result.ok, true) %}
-  {% do dbt_unittest.assert_equals(result.plan.body, 'passthrough') %}
-  {% do dbt_unittest.assert_equals(result.plan.pushdown, 'kept') %}
-  {% do dbt_unittest.assert_equals(result.plan.query_execution_priority, 'low') %}
-  {% do dbt_unittest.assert_equals(result.plan.remote_sql, 'select * from `Orders`') %}
+  {% do test_plan_from_ir_spanner_orders_native() %}
 {% endmacro %}
 
 {% macro test_spanner_google_struct_cannot_federate() %}
-  {% set conn = {'provider': 'spanner_google_sql', 'alias': 'spanner_app', 'connection_id': 'projects/p/locations/us/connections/spanner', 'policy': 'safe'} %}
-  {% set struct_result = dbt_bigquery_federation._federation_try_plan_columns(
-    conn, '', 'Orders', [{'name': 'payload', 'data_type': 'STRUCT<id INT64>'}]
+  {% do test_plan_from_ir_spanner_struct_still_fails() %}
+  {% set conn = _ir_fixture_connection(
+    'spanner_google_sql',
+    'spanner_app',
+    'projects/p/locations/us/connections/spanner'
   ) %}
-  {% do dbt_unittest.assert_equals(struct_result.ok, false) %}
-  {% do dbt_unittest.assert_equals('unsupported type' in struct_result.error, true) %}
-  {% do dbt_unittest.assert_equals('STRUCT<id INT64>' in struct_result.error, true) %}
   {% set array_struct_result = dbt_bigquery_federation._federation_try_plan_columns(
     conn, '', 'Orders', [{'name': 'payload', 'data_type': 'ARRAY<STRUCT<id INT64>>'}]
   ) %}
@@ -72,7 +124,7 @@
 {% endmacro %}
 
 {% macro test_spanner_pinned_federated_relation_renders_priority() %}
-  {% set sql = dbt_bigquery_federation.federated_relation('spanner_app', 'Orders') %}
+  {% set sql = dbt_bigquery_federation.federated_relation('spanner_app', 'Orders', '') %}
   {% set actual = dbt_bigquery_federation._federation_collapse_ws(sql) %}
   {% set expected = "EXTERNAL_QUERY('projects/example/locations/us/connections/spanner-data', 'select `id`, `payload` from `Orders`', '" ~ '{"query_execution_priority":"low"}' ~ "')" %}
   {% do dbt_unittest.assert_equals(actual, expected) %}
