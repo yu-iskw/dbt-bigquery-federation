@@ -82,7 +82,7 @@
     'projects/p/locations/us/connections/spanner'
   ) %}
   {% set result = dbt_bigquery_federation._federation_try_plan_columns(
-    conn, '', 'Orders', [{'name': 'payload', 'data_type': 'STRUCT<id INT64>'}]
+    conn, '', 'Orders', [{'name': 'payload', 'data_type': 'STRUCT<id INT64>'}], none, none, 'live'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
   {% do dbt_unittest.assert_equals('unsupported type' in result.error, true) %}
@@ -96,7 +96,7 @@
     'projects/p/locations/us/connections/pg'
   ) %}
   {% set columns = [{'name': 'user_uuid', 'data_type': 'USER-DEFINED', 'udt_name': 'uuid'}] %}
-  {% set result = dbt_bigquery_federation._federation_try_plan_columns(conn, 'public', 'users', columns) %}
+  {% set result = dbt_bigquery_federation._federation_try_plan_columns(conn, 'public', 'users', columns, none, none, 'live') %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].source_type, 'uuid') %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'remote_cast') %}

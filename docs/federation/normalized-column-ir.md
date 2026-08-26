@@ -3,7 +3,7 @@
 This document freezes the **schema between layer 1 (metadata extraction) and layer 2 (type planning / SQL generation)**.
 
 ```text
-Layer 1  information_schema / pins
+Layer 1  information_schema (operations) / pins (models)
             │
             ▼
      normalized column IR   ← this contract
@@ -14,15 +14,19 @@ Layer 2  classify → decimal fold → remote SQL → EXTERNAL_QUERY
 
 ## Ownership
 
-| Layer            | Responsibility                                                                        | Entry macros                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 1. Extract       | Resolve connection, run provider metadata SQL (or load a pin), normalize rows into IR | `_federation_try_get_remote_columns`, `_federation_normalize_metadata_result`, `_federation_try_load_pin` |
-| IR               | Serializable column list shared by live discovery, pins, and unit fixtures            | Documented below                                                                                          |
-| 2. Plan + render | Classify types, fold decimals, build remote SQL, wrap `EXTERNAL_QUERY`                | `_federation_try_plan_columns`, `_federation_build_remote_sql`, `_federation_render_external_query`       |
+| Layer            | Responsibility                                                                                            | Entry macros                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 1. Extract       | Resolve connection, run provider metadata SQL (operations) or load a pin (models), normalize rows into IR | `_federation_try_get_remote_columns`, `_federation_normalize_metadata_result`, `_federation_try_load_pin` |
+| IR               | Serializable column list shared by live discovery, pins, and unit fixtures                                | Documented below                                                                                          |
+| 2. Plan + render | Classify types, fold decimals, build remote SQL, wrap `EXTERNAL_QUERY`                                    | `_federation_try_plan_columns`, `_federation_build_remote_sql`, `_federation_render_external_query`       |
 
-Live and pinned frontends both call `_federation_try_plan_columns` with IR columns. Unit tests for layer 2 MUST pass IR fixtures into that macro and MUST NOT call `run_query` / live discovery.
+`federated_relation` always loads pins and calls `_federation_try_plan_columns` with `metadata_source='pinned'`. It must never call `run_query`. Live discovery (`_federation_try_plan_live`) is reserved for `federation_inspect`, `federation_generate_pin`, `federation_schema_diff`, `federation_validate`, and e2e helpers.
 
-Pins under `vars.dbt_bigquery_federation.tables` are a **serializable subset** of this IR (plus optional pin-only `strategy` / `remote_type` / `target_type` overrides). Do not invent a second column shape for planner fixtures.
+Pins under `vars.dbt_bigquery_federation.tables` (or root `vars.yml` on dbt 1.12+) are a **serializable subset** of this IR (plus optional pin-only `strategy` / `remote_type` / `target_type` overrides). Do not invent a second column shape for planner fixtures.
+
+## Why models use pins only
+
+dbt [`execute`](https://docs.getdbt.com/reference/dbt-jinja-functions/execute) is `False` only during parse. [`run_query`](https://docs.getdbt.com/reference/dbt-jinja-functions/run_query) still runs during `dbt compile`, `dbt run`, `dbt build`, and `dbt docs generate` when a warehouse connection is available. Keeping discovery off the model path makes parse, compile, docs, and run emit the same planned SQL.
 
 ## Required column fields
 
@@ -58,7 +62,7 @@ _federation_try_plan_columns(
   columns,          # list of IR column mappings
   type_policy=None,
   overrides=None,
-  metadata_source='live' | 'pinned'
+  metadata_source   # required: 'live' | 'pinned'
 ) → { ok, error, plan }
 ```
 

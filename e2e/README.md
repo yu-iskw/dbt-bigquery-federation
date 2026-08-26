@@ -24,7 +24,7 @@ Live e2e fixtures exercise federation under real connectors:
 | Spanner | `TypeMatrix`         | Every native scalar (`BOOL`, `BYTES`, `DATE`, `FLOAT64`, `INT64`, `JSON`, `NUMERIC`, `STRING`, `TIMESTAMP`) plus `ARRAY<STRING>`                                                                                                  |
 | Spanner | `Orders`             | Small smoke table (row-count check)                                                                                                                                                                                               |
 
-`assert_e2e_type_matrices` discovers live metadata, plans via `federated_relation(..., metadata_mode='live')`, and asserts planned actions plus federated cell values. Exotic unsupported Postgres types (geometry, `tsquery`, …) stay offline-only.
+`assert_e2e_type_matrices` discovers live metadata via `_federation_try_plan_live` (not `federated_relation`), and asserts planned actions plus federated cell values. Exotic unsupported Postgres types (geometry, `tsquery`, …) stay offline-only.
 
 For Spanner, the Terraform module deliberately creates two BigQuery connections:
 

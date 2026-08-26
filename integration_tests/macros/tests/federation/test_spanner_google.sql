@@ -117,7 +117,7 @@
     'projects/p/locations/us/connections/spanner'
   ) %}
   {% set array_struct_result = dbt_bigquery_federation._federation_try_plan_columns(
-    conn, '', 'Orders', [{'name': 'payload', 'data_type': 'ARRAY<STRUCT<id INT64>>'}]
+    conn, '', 'Orders', [{'name': 'payload', 'data_type': 'ARRAY<STRUCT<id INT64>>'}], none, none, 'live'
   ) %}
   {% do dbt_unittest.assert_equals(array_struct_result.ok, false) %}
   {% do dbt_unittest.assert_equals('ARRAY<STRUCT<id INT64>>' in array_struct_result.error, true) %}

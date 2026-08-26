@@ -3,6 +3,11 @@
   {% if cfg is not mapping %}
     {{ exceptions.raise_compiler_error('vars.dbt_bigquery_federation must be a mapping') }}
   {% endif %}
+  {% if 'metadata' in cfg %}
+    {{ exceptions.raise_compiler_error(
+      "vars.dbt_bigquery_federation.metadata is no longer supported. federated_relation always plans from vars.dbt_bigquery_federation.tables pins; use run-operation for live discovery."
+    ) }}
+  {% endif %}
   {{ return(cfg) }}
 {% endmacro %}
 

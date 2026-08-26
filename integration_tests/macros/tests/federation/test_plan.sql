@@ -203,6 +203,7 @@
   {% do dbt_unittest.assert_equals(result.ok, false) %}
   {% do dbt_unittest.assert_equals('application_pg' in result.error, true) %}
   {% do dbt_unittest.assert_equals('application_pg.public.does_not_exist' in result.error, true) %}
+  {% do dbt_unittest.assert_equals('federation_generate_pin' in result.error, true) %}
 {% endmacro %}
 
 {% macro test_plan_type_overrides_money_under_strict() %}
@@ -369,7 +370,7 @@
 {% macro test_plan_user_defined_udt_name_classifies_uuid() %}
   {% set conn = {'provider': 'cloud_sql_postgres', 'alias': 'application_pg', 'connection_id': 'projects/p/locations/us/connections/pg', 'policy': 'safe'} %}
   {% set columns = [{'name': 'user_uuid', 'data_type': 'USER-DEFINED', 'udt_name': 'uuid'}] %}
-  {% set result = dbt_bigquery_federation._federation_try_plan_columns(conn, 'public', 'users', columns) %}
+  {% set result = dbt_bigquery_federation._federation_try_plan_columns(conn, 'public', 'users', columns, none, none, 'live') %}
   {% do dbt_unittest.assert_equals(result.ok, true) %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].source_type, 'uuid') %}
   {% do dbt_unittest.assert_equals(result.plan.columns[0].action, 'remote_cast') %}
@@ -383,7 +384,7 @@
 {% macro test_plan_array_udt_name_does_not_replace_data_type() %}
   {% set conn = {'provider': 'cloud_sql_postgres', 'alias': 'application_pg', 'connection_id': 'projects/p/locations/us/connections/pg', 'policy': 'safe'} %}
   {% set result = dbt_bigquery_federation._federation_try_plan_columns(
-    conn, 'public', 'int_array', [{'name': 'data', 'data_type': 'ARRAY', 'udt_name': '_int4'}]
+    conn, 'public', 'int_array', [{'name': 'data', 'data_type': 'ARRAY', 'udt_name': '_int4'}], none, none, 'live'
   ) %}
   {% do dbt_unittest.assert_equals(result.ok, false) %}
   {% do dbt_unittest.assert_equals('unknown type' in result.error, true) %}

@@ -1,9 +1,17 @@
 {# Layer 2 entrypoint: plan remote SQL from normalized column IR.
    Layer 1 (live discovery / pins) must normalize into the IR documented in
    docs/federation/normalized-column-ir.md before calling this macro.
-   Unit tests should call this with fixtures; do not run_query here. #}
-{% macro _federation_try_plan_columns(connection_cfg, schema, table, columns, type_policy=None, overrides=None, metadata_source='live') %}
+   Unit tests should call this with fixtures; do not run_query here.
+   metadata_source is required: 'pinned' (stable projection) or 'live'. #}
+{% macro _federation_try_plan_columns(connection_cfg, schema, table, columns, type_policy=None, overrides=None, metadata_source=none) %}
   {% set relation = connection_cfg.provider ~ ' ' ~ schema ~ '.' ~ table %}
+  {% if metadata_source not in ['live', 'pinned'] %}
+    {{ return({
+      'ok': false,
+      'error': relation ~ ": metadata_source must be 'live' or 'pinned', got " ~ (metadata_source | string),
+      'plan': none
+    }) }}
+  {% endif %}
   {% set policy_result = dbt_bigquery_federation._federation_resolve_policy(connection_cfg, type_policy) %}
   {% if not policy_result.ok %}
     {{ return({'ok': false, 'error': relation ~ ': ' ~ policy_result.error, 'plan': none}) }}
@@ -52,10 +60,13 @@
   }}) }}
 {% endmacro %}
 
+{# Live discovery for run-operation / e2e only. federated_relation must not call this. #}
 {% macro _federation_try_plan_live(connection, table, schema=None, type_policy=None, overrides=None) %}
   {% set discovered = dbt_bigquery_federation._federation_try_get_remote_columns(connection, table, schema) %}
   {% if not discovered.ok %}
     {{ return({'ok': false, 'error': discovered.error, 'plan': none}) }}
   {% endif %}
-  {{ return(dbt_bigquery_federation._federation_try_plan_columns(discovered.connection, discovered.schema, discovered.table, discovered.columns, type_policy, overrides)) }}
+  {{ return(dbt_bigquery_federation._federation_try_plan_columns(
+    discovered.connection, discovered.schema, discovered.table, discovered.columns, type_policy, overrides, 'live'
+  )) }}
 {% endmacro %}
