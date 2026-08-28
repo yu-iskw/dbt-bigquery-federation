@@ -9,24 +9,26 @@ Bump or drop a dbt-core version across all four locations where it is pinned.
 
 ## Files to change
 
-| File | What to update |
-| --- | --- |
-| `integration_tests/pyproject.toml` | Add/remove a `[dependency-groups.dbt-core-X-Y]` section with `dbt-core` and `dbt-postgres` pins |
-| `integration_tests/noxfile_core.py` | Add/remove the uv group from `LOCAL_DBT_GROUPS` / `SETUP_DBT_GROUPS` and `@nox.parametrize`; check `dev_*` sessions still point to a valid group |
-| `.github/workflows/integration-tests.yml` | Add/remove the version from the `uv-group` matrix axis |
-| `dbt_project.yml` | Update `require-dbt-version` bounds if the new version is outside the current range |
+| File                                      | What to update                                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `integration_tests/pyproject.toml`        | Add/remove a `[dependency-groups.dbt-core-X-Y]` section with `dbt-core` and `dbt-postgres` pins                                                  |
+| `integration_tests/noxfile_core.py`       | Add/remove the uv group from `LOCAL_DBT_GROUPS` / `SETUP_DBT_GROUPS` and `@nox.parametrize`; check `dev_*` sessions still point to a valid group |
+| `.github/workflows/integration-tests.yml` | Add/remove the version from the `uv-group` matrix axis                                                                                           |
+| `dbt_project.yml`                         | Update `require-dbt-version` bounds if the new version is outside the current range                                                              |
 
 ## Step-by-step
 
 ### 1. Confirm the target version
 
 Ask the user (or read from their prompt):
+
 - **Adding** version X.Y? → need exact patch pin for `dbt-core` and `dbt-postgres` (check PyPI).
 - **Dropping** version X.Y? → remove its group and all matrix references.
 
 ### 2. Update `integration_tests/pyproject.toml`
 
 **Adding:**
+
 ```toml
 [dependency-groups.dbt-core-X-Y]
 dependencies = [
@@ -51,9 +53,11 @@ Find `LOCAL_DBT_GROUPS` / `SETUP_DBT_GROUPS` (and `@nox.parametrize("uv_group", 
 ### 4. Update `.github/workflows/integration-tests.yml`
 
 Find the matrix block:
+
 ```yaml
 uv-group: [dbt-core-1-10, dbt-core-1-11, dbt-core-1-12]
 ```
+
 **Adding:** Append `dbt-core-X-Y`.
 **Dropping:** Remove the entry.
 
@@ -62,6 +66,7 @@ uv-group: [dbt-core-1-10, dbt-core-1-11, dbt-core-1-12]
 ```yaml
 require-dbt-version: [">=1.10.0", "<1.X.0"]
 ```
+
 Expand the upper bound when adding a version beyond the current range.
 
 ### 6. Regenerate the lock file

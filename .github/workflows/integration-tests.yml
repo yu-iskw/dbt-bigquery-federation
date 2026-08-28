@@ -83,7 +83,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dbt-group: ["dbt-bigquery-1-10", "dbt-bigquery-1-11", "dbt-bigquery-1-12"]
+        dbt-group:
+          ["dbt-bigquery-1-10", "dbt-bigquery-1-11", "dbt-bigquery-1-12"]
     defaults:
       run:
         working-directory: integration_tests
