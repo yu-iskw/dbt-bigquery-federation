@@ -27,7 +27,13 @@ DBT_CMD="${DBT_CMD:-dbt}"
 # emulator was introduced. EXTERNAL_QUERY itself is intentionally not executed:
 # bigquery-emulator does not currently implement Connection API federation, so
 # real Cloud SQL/AlloyDB/Spanner behavior remains an authenticated GCP E2E concern.
+#
+# Skip relation-cache population. dbt-bigquery 1.12 lists dataset routines while
+# filling the cache; goccy/bigquery-emulator does not implement routines.list
+# and the client retries that 500 for minutes. Compile of these models only
+# needs Jinja SQL, not catalog metadata.
 "${DBT_CMD}" compile \
+	--no-populate-cache \
 	--profiles-dir profiles \
 	--target "${TARGET}" \
 	--select stg_federated_orders stg_federated_orders_table stg_federated_orders_incremental

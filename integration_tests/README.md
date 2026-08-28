@@ -2,7 +2,7 @@
 
 This directory contains the test harness:
 
-- a required dbt-core lane on `postgres` (Jinja engine) for `dbt-core-1-10` and `dbt-core-1-11`
+- a required dbt-core lane on `postgres` (Jinja engine) for `dbt-core-1-10`, `dbt-core-1-11`, and `dbt-core-1-12`
 - a credential-free **Layer 3 dialect extract** lane (pytest + Postgres container + Spanner emulator)
 - a non-blocking `dbt Fusion` preview lane on the same Postgres contract
 

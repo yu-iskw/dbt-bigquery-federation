@@ -10,10 +10,12 @@ dependencies = ["pytz>=2015.7", "nox>=2024.10.9"]
 dbt-fusion = []
 dbt-core-1-10 = ["dbt-core>=1.10,<1.11", "dbt-postgres>=1.10,<1.11"]
 dbt-core-1-11 = ["dbt-core>=1.11,<1.12", "dbt-postgres>=1.10,<1.11"]
+dbt-core-1-12 = ["dbt-core>=1.12,<1.13", "dbt-postgres>=1.11,<1.12"]
 # These groups run against goccy/bigquery-emulator in CI. Real EXTERNAL_QUERY
 # federation remains covered by authenticated GCP E2E tests.
 dbt-bigquery-1-10 = ["dbt-core>=1.10,<1.11", "dbt-bigquery>=1.10,<1.11"]
 dbt-bigquery-1-11 = ["dbt-core>=1.11,<1.12", "dbt-bigquery>=1.11,<1.12"]
+dbt-bigquery-1-12 = ["dbt-core>=1.12,<1.13", "dbt-bigquery>=1.12,<1.13"]
 # Layer 3 dialect extract: pytest executes package remote SQL against Postgres
 # container + Spanner emulator (no BigQuery EXTERNAL_QUERY). dbt-duckdb is the
 # compile/export target so Jinja-engine Postgres is not required.
@@ -36,6 +38,10 @@ conflicts = [
   ],
   [
     { group = "dbt-fusion" },
+    { group = "dbt-core-1-12" },
+  ],
+  [
+    { group = "dbt-fusion" },
     { group = "dbt-bigquery-1-10" },
   ],
   [
@@ -43,8 +49,16 @@ conflicts = [
     { group = "dbt-bigquery-1-11" },
   ],
   [
+    { group = "dbt-fusion" },
+    { group = "dbt-bigquery-1-12" },
+  ],
+  [
     { group = "dbt-core-1-10" },
     { group = "dbt-core-1-11" },
+  ],
+  [
+    { group = "dbt-core-1-10" },
+    { group = "dbt-core-1-12" },
   ],
   [
     { group = "dbt-core-1-10" },
@@ -55,6 +69,14 @@ conflicts = [
     { group = "dbt-bigquery-1-11" },
   ],
   [
+    { group = "dbt-core-1-10" },
+    { group = "dbt-bigquery-1-12" },
+  ],
+  [
+    { group = "dbt-core-1-11" },
+    { group = "dbt-core-1-12" },
+  ],
+  [
     { group = "dbt-core-1-11" },
     { group = "dbt-bigquery-1-10" },
   ],
@@ -63,8 +85,32 @@ conflicts = [
     { group = "dbt-bigquery-1-11" },
   ],
   [
+    { group = "dbt-core-1-11" },
+    { group = "dbt-bigquery-1-12" },
+  ],
+  [
+    { group = "dbt-core-1-12" },
+    { group = "dbt-bigquery-1-10" },
+  ],
+  [
+    { group = "dbt-core-1-12" },
+    { group = "dbt-bigquery-1-11" },
+  ],
+  [
+    { group = "dbt-core-1-12" },
+    { group = "dbt-bigquery-1-12" },
+  ],
+  [
     { group = "dbt-bigquery-1-10" },
     { group = "dbt-bigquery-1-11" },
+  ],
+  [
+    { group = "dbt-bigquery-1-10" },
+    { group = "dbt-bigquery-1-12" },
+  ],
+  [
+    { group = "dbt-bigquery-1-11" },
+    { group = "dbt-bigquery-1-12" },
   ],
 ]
 

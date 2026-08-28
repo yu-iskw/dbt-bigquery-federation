@@ -25,7 +25,7 @@ macros:
         type: string
         description: Optional policy override; safe or strict.
       - name: overrides
-        type: dict
+        type: dict[str, any]
         description: Optional mapping of column name to conversion override.
       - name: metadata_mode
         type: string
@@ -80,13 +80,13 @@ macros:
         type: string
         description: Remote table name.
       - name: live
-        type: boolean
+        type: bool
         description: Discover live metadata when true; otherwise use pins.
       - name: type_policy
         type: string
         description: Optional policy override; safe or strict.
       - name: overrides
-        type: dict
+        type: dict[str, any]
         description: Optional column conversion overrides.
 
   - name: federation_generate_pin
@@ -146,5 +146,5 @@ macros:
           Required remote schema. Empty string targets Spanner GoogleSQL's
           default schema.
       - name: fail_on_drift
-        type: boolean
+        type: bool
         description: Raise a compiler error on drift when true.
