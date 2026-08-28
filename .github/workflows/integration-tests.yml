@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
-        dbt-group: ["dbt-core-1-10", "dbt-core-1-11"]
+        dbt-group: ["dbt-core-1-10", "dbt-core-1-11", "dbt-core-1-12"]
         adapter: ["postgres"]
     services:
       postgres:
@@ -83,7 +83,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dbt-group: ["dbt-bigquery-1-10", "dbt-bigquery-1-11"]
+        dbt-group: ["dbt-bigquery-1-10", "dbt-bigquery-1-11", "dbt-bigquery-1-12"]
     defaults:
       run:
         working-directory: integration_tests

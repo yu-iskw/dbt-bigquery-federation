@@ -13,8 +13,10 @@ UV_RUN_NOX_FUSION = $(UV_RUN_NOX) -f noxfile_fusion.py
 # Nox session names (quoted for bash -lc recipes).
 NOX_UNIT_PG_110 := unit_tests-3.12(adapter='postgres', uv_group='dbt-core-1-10')
 NOX_UNIT_PG_111 := unit_tests-3.12(adapter='postgres', uv_group='dbt-core-1-11')
+NOX_UNIT_PG_112 := unit_tests-3.12(adapter='postgres', uv_group='dbt-core-1-12')
 NOX_INT_PG_110 := integration_tests-3.12(adapter='postgres', uv_group='dbt-core-1-10')
 NOX_INT_PG_111 := integration_tests-3.12(adapter='postgres', uv_group='dbt-core-1-11')
+NOX_INT_PG_112 := integration_tests-3.12(adapter='postgres', uv_group='dbt-core-1-12')
 NOX_DIALECT := dialect_extract_tests
 
 setup:
@@ -61,7 +63,7 @@ dialect-logs:
 
 run-unit-tests-postgres:
 	./scripts/run_with_postgres_container.sh \
-		bash -lc "$(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_110)\" && $(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_111)\""
+		bash -lc "$(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_110)\" && $(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_111)\" && $(UV_RUN_NOX) -s \"$(NOX_UNIT_PG_112)\""
 
 run-unit-tests: clean run-unit-tests-postgres
 
@@ -71,7 +73,7 @@ run-unit-tests-fusion: clean
 
 run-integration-tests-postgres:
 	./scripts/run_with_postgres_container.sh \
-		bash -lc "$(UV_RUN_NOX) -s \"$(NOX_INT_PG_110)\" && $(UV_RUN_NOX) -s \"$(NOX_INT_PG_111)\""
+		bash -lc "$(UV_RUN_NOX) -s \"$(NOX_INT_PG_110)\" && $(UV_RUN_NOX) -s \"$(NOX_INT_PG_111)\" && $(UV_RUN_NOX) -s \"$(NOX_INT_PG_112)\""
 
 run-integration-tests: clean run-integration-tests-postgres
 

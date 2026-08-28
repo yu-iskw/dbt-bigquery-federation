@@ -25,9 +25,9 @@ nox.options.sessions = ["dev_unit_tests", "dev_integration_tests"]
 nox.options.default_venv_backend = "uv"
 
 PYTHON_VERSIONS = ["3.10", "3.11", "3.12"]
-LOCAL_DBT_GROUPS = ["dbt-core-1-10", "dbt-core-1-11"]
-SETUP_DBT_GROUPS = ["dbt-core-1-10", "dbt-core-1-11"]
-BIGQUERY_DBT_GROUPS = ["dbt-bigquery-1-10", "dbt-bigquery-1-11"]
+LOCAL_DBT_GROUPS = ["dbt-core-1-10", "dbt-core-1-11", "dbt-core-1-12"]
+SETUP_DBT_GROUPS = ["dbt-core-1-10", "dbt-core-1-11", "dbt-core-1-12"]
+BIGQUERY_DBT_GROUPS = ["dbt-bigquery-1-10", "dbt-bigquery-1-11", "dbt-bigquery-1-12"]
 
 
 @nox.session(python="3.12")
