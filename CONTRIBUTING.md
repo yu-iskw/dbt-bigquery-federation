@@ -23,7 +23,7 @@ Remote Cloud SQL PostgreSQL quoting is **not** selected via `postgres__*` adapte
 
 Macro descriptions and arguments are defined in [`macros/properties.yml`](macros/properties.yml). After `dbt deps`, generate your project’s docs as usual; macro pages reflect this metadata.
 
-**Maintainers** run **lint** and **tests** from the repository root (Postgres Jinja engine, dbt-core 1.10 and 1.11, optional non-blocking Fusion lane); see [How to develop](#how-to-develop) and [Test harness and Fusion](#test-harness-and-fusion). Workspace rules for agents: [`AGENTS.md`](AGENTS.md). **Claude Code** workflow: [`CLAUDE.md`](CLAUDE.md).
+**Maintainers** run **lint** and **tests** from the repository root (Postgres Jinja engine, dbt-core 1.10, 1.11, and 1.12, optional non-blocking Fusion lane); see [How to develop](#how-to-develop) and [Test harness and Fusion](#test-harness-and-fusion). Workspace rules for agents: [`AGENTS.md`](AGENTS.md). **Claude Code** workflow: [`CLAUDE.md`](CLAUDE.md).
 
 ## Development layout and tooling
 
@@ -82,7 +82,7 @@ make run-integration-tests
 make run-fusion-tests
 ```
 
-- **dbt Core lane (required):** Postgres Jinja engine, `dbt-core-1-10` and `dbt-core-1-11`.
+- **dbt Core lane (required):** Postgres Jinja engine, `dbt-core-1-10`, `dbt-core-1-11`, and `dbt-core-1-12`.
 - **Fusion lane (preview, non-blocking in CI):** same Postgres contract via [`integration_tests/noxfile_fusion.py`](integration_tests/noxfile_fusion.py). The harness sets **`DBT_ALLOW_EXPERIMENTAL_ADAPTERS=true`** because Fusion still treats postgres as experimental. Set **`DBT_FUSION_VERSION`** to pin a build.
 
 `make run-fusion-tests` runs **both** Fusion unit and Fusion integration targets.
@@ -114,7 +114,7 @@ make lint
 
 ### How to run unit testing
 
-Unit tests execute dbt macros with `dbt run-operation` on Postgres for `dbt-core-1-10` and `dbt-core-1-11`. They assert planner/SQL strings and do **not** run `EXTERNAL_QUERY`.
+Unit tests execute dbt macros with `dbt run-operation` on Postgres for `dbt-core-1-10`, `dbt-core-1-11`, and `dbt-core-1-12`. They assert planner/SQL strings and do **not** run `EXTERNAL_QUERY`.
 
 ```shell
 make run-unit-tests

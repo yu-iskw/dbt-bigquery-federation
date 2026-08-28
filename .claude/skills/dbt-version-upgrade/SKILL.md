@@ -52,7 +52,7 @@ Find `LOCAL_DBT_GROUPS` / `SETUP_DBT_GROUPS` (and `@nox.parametrize("uv_group", 
 
 Find the matrix block:
 ```yaml
-uv-group: [dbt-core-1-10, dbt-core-1-11]
+uv-group: [dbt-core-1-10, dbt-core-1-11, dbt-core-1-12]
 ```
 **Adding:** Append `dbt-core-X-Y`.
 **Dropping:** Remove the entry.
